@@ -3,16 +3,13 @@ import { ProfitManager, ContentAgent, EcommerceAgent, TradingAgent, SaaSAgent } 
 
 export class ProfitAPI {
   private router = express.Router();
-  private profitManager: ProfitManager;
-  private contentAgent: ContentAgent;
-  private ecommerceAgent: EcommerceAgent;
+  private profitManager = new ProfitManager();
+  private contentAgent = new ContentAgent();
+  private ecommerceAgent = new EcommerceAgent();
   private tradingAgent: TradingAgent;
-  private saasAgent: SaaSAgent;
+  private saasAgent = new SaaSAgent();
 
   constructor() {
-    this.profitManager = new ProfitManager();
-    this.contentAgent = new ContentAgent();
-    this.ecommerceAgent = new EcommerceAgent();
     this.tradingAgent = new TradingAgent();
     this.tradingAgent.reset();
     

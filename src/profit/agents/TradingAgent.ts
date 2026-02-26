@@ -90,8 +90,8 @@ export class TradingAgent {
   }
 
   async analyze(symbol: string): Promise<{
-    trend: 'bullish' | | 'neutral';
-    strength: number 'bearish';
+    trend: 'bullish' | 'neutral' | 'bearish';
+    strength: number;
     indicators: Record<string, number>;
   }> {
     const data = await this.fetchMarketData(symbol);

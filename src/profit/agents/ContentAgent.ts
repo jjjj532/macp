@@ -1,5 +1,5 @@
 import { Task } from '../../core/types';
-import axios, { AxiosInstance } from 'axios';
+import axios from 'axios';
 
 export interface ContentConfig {
   style: 'professional' | 'casual' | 'humor' | 'technical';

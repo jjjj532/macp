@@ -132,15 +132,15 @@ export class SaaSAgent {
   async processRequest(apiKey: string, request: APIRequest): Promise<APIResponse> {
     const key = this.apiKeys.get(apiKey);
     if (!key) {
-      return { success: false, error: 'Invalid API key' };
+      return { success: false, error: 'Invalid API key', usage: { callsRemaining: 0, rateLimitRemaining: 0 } };
     }
 
     if (key.expiresAt && new Date() > key.expiresAt) {
-      return { success: false, error: 'API key expired' };
+      return { success: false, error: 'API key expired', usage: { callsRemaining: 0, rateLimitRemaining: 0 } };
     }
 
     if (key.callsUsed >= key.callsLimit) {
-      return { success: false, error: 'Rate limit exceeded' };
+      return { success: false, error: 'Rate limit exceeded', usage: { callsRemaining: 0, rateLimitRemaining: 0 } };
     }
 
     key.callsUsed++;
@@ -245,8 +245,8 @@ export class SaaSAgent {
     const plan = key ? this.config.plans.find(p => p.id === key.planId) : null;
 
     const totalCalls = keyUsage.length;
-    const avgResponseTime = total 
-      ? keyCalls > 0Usage.reduce((sum, u) => sum + u.responseTime, 0) / totalCalls 
+    const avgResponseTime = totalCalls > 0 
+      ? keyUsage.reduce((sum, u) => sum + u.responseTime, 0) / totalCalls 
       : 0;
     const successCalls = keyUsage.filter(u => u.statusCode === 200).length;
     const successRate = totalCalls > 0 ? (successCalls / totalCalls) * 100 : 0;
