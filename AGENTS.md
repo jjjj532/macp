@@ -26,25 +26,24 @@
 
 ## GitHub 配置
 
-### 1. 创建 GitHub 仓库
-访问 https://github.com/new 创建新仓库，仓库名建议：`macp`
-
-### 2. 推送代码
+### 方式一：使用 gh CLI（推荐）
 ```bash
-git add .
-git commit -m "Initial commit"
-git remote add origin https://github.com/你的用户名/macp.git
-git push -u origin main
-```
-
-### 或者使用 gh CLI
-```bash
-# 安装 gh
+# 安装 gh（如果未安装）
 brew install gh
 
 # 认证
 gh auth login
+# 选择 GitHub.com -> HTTPS -> Login with web browser -> Yes
 
-# 创建仓库
+# 创建仓库并推送
 gh repo create macp --public --source=. --push
+```
+
+### 方式二：手动推送
+1. 访问 https://github.com/new 创建仓库，名称：`macp`
+2. 获取仓库 URL 后执行：
+```bash
+git remote add origin https://github.com/你的用户名/macp.git
+git branch -M main
+git push -u origin main
 ```

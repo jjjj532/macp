@@ -41,10 +41,18 @@ export interface OpenClawConfig {
   apiKey?: string;
 }
 
+export interface Session {
+  id: string;
+  name: string;
+  created_at: string;
+}
+
 export class OpenClawIntegration {
   private client: AxiosInstance;
+  private baseUrl: string;
 
   constructor(config: OpenClawConfig) {
+    this.baseUrl = config.baseUrl;
     this.client = axios.create({
       baseURL: config.baseUrl,
       timeout: 300000,
@@ -57,38 +65,54 @@ export class OpenClawIntegration {
 
   async sendMessage(
     content: string, 
-    tools?: OpenClawTool[]
+    tools?: OpenClawTool[],
+    systemMessage?: string
   ): Promise<{
     content: string;
     toolCalls?: any[];
   }> {
+    const messages: OpenClawMessage[] = [];
+    
+    if (systemMessage) {
+      messages.push({ role: 'system', content: systemMessage });
+    }
+    messages.push({ role: 'user', content });
+    
     const request: ChatRequest = {
       model: 'openclaw:main',
-      messages: [{ role: 'user', content }],
+      messages,
       ...(tools && { tools }),
     };
     
-    const response = await this.client.post<ChatResponse>(
-      '/v1/chat/completions', 
-      request
-    );
-    
-    const message = response.data.choices[0]?.message;
-    return {
-      content: message?.content || '',
-      toolCalls: message?.tool_calls,
-    };
+    try {
+      const response = await this.client.post<ChatResponse>(
+        '/v1/chat/completions', 
+        request
+      );
+      
+      const message = response.data.choices[0]?.message;
+      return {
+        content: message?.content || '',
+        toolCalls: message?.tool_calls,
+      };
+    } catch (error: any) {
+      throw new Error(`OpenClaw API error: ${error.message}`);
+    }
   }
 
-  async invokeTool(toolName: string, args: any): Promise<any> {
-    const response = await this.client.post('/tools/invoke', {
-      tool: toolName,
-      args,
-    });
-    return response.data;
+  async invokeTool(toolName: string, args: Record<string, unknown>): Promise<any> {
+    try {
+      const response = await this.client.post('/tools/invoke', {
+        tool: toolName,
+        args,
+      });
+      return response.data;
+    } catch (error: any) {
+      throw new Error(`OpenClaw tool invocation failed: ${error.message}`);
+    }
   }
 
-  async listSessions(): Promise<any[]> {
+  async listSessions(): Promise<Session[]> {
     try {
       const response = await this.client.post('/tools/invoke', {
         tool: 'sessions_list',
@@ -100,6 +124,42 @@ export class OpenClawIntegration {
     }
   }
 
+  async createSession(name: string): Promise<Session | null> {
+    try {
+      const response = await this.client.post('/tools/invoke', {
+        tool: 'session_create',
+        args: { name },
+      });
+      return response.data?.result?.session || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async deleteSession(sessionId: string): Promise<boolean> {
+    try {
+      await this.client.post('/tools/invoke', {
+        tool: 'session_delete',
+        args: { session_id: sessionId },
+      });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async getSession(sessionId: string): Promise<any | null> {
+    try {
+      const response = await this.client.post('/tools/invoke', {
+        tool: 'session_get',
+        args: { session_id: sessionId },
+      });
+      return response.data?.result?.session || null;
+    } catch {
+      return null;
+    }
+  }
+
   async checkHealth(): Promise<boolean> {
     try {
       await this.listSessions();
@@ -107,5 +167,9 @@ export class OpenClawIntegration {
     } catch {
       return false;
     }
+  }
+
+  getBaseUrl(): string {
+    return this.baseUrl;
   }
 }
