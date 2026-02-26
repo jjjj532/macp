@@ -185,7 +185,14 @@
     function render() {
       const c = document.getElementById('content');
       const caps = [...new Set(agents.flatMap(a => a.capabilities ? a.capabilities.map(c => c.name || c) : []))];
-      const capNames = {chat: 'AI对话', invoke_tool: '调用工具', list_sessions: '列出会话', session_management: '会话管理', code_generation: '代码生成', code_review: '代码审查'};
+      const capNames = {
+        chat: 'AI对话', invoke_tool: '调用工具', list_sessions: '列出会话', session_management: '会话管理', 
+        code_generation: '代码生成', code_review: '代码审查',
+        article_generation: '文章生成', seo_optimization: 'SEO优化', content_publishing: '内容发布',
+        product_research: '商品调研', listing_creation: '商品上架', customer_service: '智能客服',
+        market_analysis: '市场分析', signal_generation: '信号生成', auto_trading: '自动交易',
+        api_management: 'API管理', usage_tracking: '用量追踪', subscription_management: '订阅管理'
+      };
       document.getElementById('taskCap').innerHTML = '<option value="">选择能力</option>' + caps.map(x => '<option value="' + x + '">' + (capNames[x] || x) + '</option>').join('');
       
       if (currentTab === 'dashboard') {
@@ -216,13 +223,20 @@
                 '<div class="agent-header"><div class="agent-avatar ' + a.status + '">🤖</div><span class="status-badge ' + a.status + '">' + 
                   (a.status === 'idle' ? '空闲' : a.status === 'busy' ? '忙碌' : '错误') + 
                 '</span></div>' +
-                '<div class="agent-name">' + a.name + '</div>' +
-                '<div class="agent-domain">' + (a.domain || '') + '</div>' +
+                '<div class="agent-name">' + (a.name === 'Code Agent' ? '代码智能体' : a.name === 'OpenClaw Agent' ? 'OpenClaw智能体' : a.name === 'Content Agent' ? '内容创作智能体' : a.name === 'Ecommerce Agent' ? '电商智能体' : a.name === 'Trading Agent' ? '交易智能体' : a.name === 'SaaS Agent' ? 'SaaS智能体' : a.name) + '</div>' +
+                '<div class="agent-domain">' + (a.domain === 'Software Development' ? '软件开发' : a.domain === 'AI Assistant' ? 'AI助手' : a.domain === 'Content Creation' ? '内容创作' : a.domain === 'Ecommerce' ? '电商' : a.domain === 'Finance' ? '金融' : a.domain === 'SaaS' ? 'SaaS服务' : a.domain) + '</div>' +
                 '<div class="agent-desc">' + (a.description || '') + '</div>' +
                 '<div class="caps">' + 
                   (a.capabilities ? a.capabilities.map(c => {
                     const name = c.name || c;
-                    const cn = {chat: 'AI对话', invoke_tool: '调用工具', list_sessions: '列出会话', session_management: '会话管理', code_generation: '代码生成', code_review: '代码审查'}[name] || name;
+                    const cn = {
+                      chat: 'AI对话', invoke_tool: '调用工具', list_sessions: '列出会话', session_management: '会话管理', 
+                      code_generation: '代码生成', code_review: '代码审查',
+                      article_generation: '文章生成', seo_optimization: 'SEO优化', content_publishing: '内容发布',
+                      product_research: '商品调研', listing_creation: '商品上架', customer_service: '智能客服',
+                      market_analysis: '市场分析', signal_generation: '信号生成', auto_trading: '自动交易',
+                      api_management: 'API管理', usage_tracking: '用量追踪', subscription_management: '订阅管理'
+                    }[name] || name;
                     return '<span class="cap">' + cn + '</span>';
                   }).join('') : '') + 
                 '</div></div>'
