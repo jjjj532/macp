@@ -152,7 +152,9 @@ class MACP {
   }
 
   private registerAlertRules(): void {
-    this.alerts.registerRule('no_available_agents', {
+    this.alerts.registerRule({
+      id: 'no_available_agents',
+      name: 'No Available Agents',
       condition: () => this.agentRegistry.findAvailable([]).length === 0,
       message: 'No available agents',
       severity: 'warning',
@@ -183,7 +185,98 @@ class MACP {
     });
 
     await this.agentManager.startAgent('agent-coder-001');
+
+    await this.registerProfitAgents();
+    
     this.logs.info('Default agents ready');
+  }
+
+  private async registerProfitAgents(): Promise<void> {
+    const contentAgent: Capability[] = [
+      { name: 'article_generation', description: 'Generate articles' },
+      { name: 'seo_optimization', description: 'SEO optimization' },
+      { name: 'content_publishing', description: 'Publish to platforms' },
+    ];
+
+    await this.agentManager.createAgent({
+      id: 'content-agent',
+      name: 'Content Agent',
+      domain: 'Content Creation',
+      description: 'Auto-generate content and publish for ad revenue',
+      capabilities: contentAgent,
+      executor: {
+        execute: async (task) => {
+          this.logs.info('Content task: ' + task.name);
+          return { output: 'Content generated and published' };
+        },
+      },
+    });
+    await this.agentManager.startAgent('content-agent');
+
+    const ecommerceAgent: Capability[] = [
+      { name: 'product_research', description: 'Research products' },
+      { name: 'listing_creation', description: 'Create product listings' },
+      { name: 'customer_service', description: 'Handle customer inquiries' },
+    ];
+
+    await this.agentManager.createAgent({
+      id: 'ecommerce-agent',
+      name: 'Ecommerce Agent',
+      domain: 'Ecommerce',
+      description: 'Auto-manage ecommerce store for sales revenue',
+      capabilities: ecommerceAgent,
+      executor: {
+        execute: async (task) => {
+          this.logs.info('Ecommerce task: ' + task.name);
+          return { output: 'Ecommerce task completed' };
+        },
+      },
+    });
+    await this.agentManager.startAgent('ecommerce-agent');
+
+    const tradingAgent: Capability[] = [
+      { name: 'market_analysis', description: 'Analyze market data' },
+      { name: 'signal_generation', description: 'Generate trading signals' },
+      { name: 'auto_trading', description: 'Execute trades automatically' },
+    ];
+
+    await this.agentManager.createAgent({
+      id: 'trading-agent',
+      name: 'Trading Agent',
+      domain: 'Finance',
+      description: 'Automated trading for profit',
+      capabilities: tradingAgent,
+      executor: {
+        execute: async (task) => {
+          this.logs.info('Trading task: ' + task.name);
+          return { output: 'Trade executed' };
+        },
+      },
+    });
+    await this.agentManager.startAgent('trading-agent');
+
+    const saasAgent: Capability[] = [
+      { name: 'api_management', description: 'Manage API keys' },
+      { name: 'usage_tracking', description: 'Track API usage' },
+      { name: 'subscription_management', description: 'Manage subscriptions' },
+    ];
+
+    await this.agentManager.createAgent({
+      id: 'saas-agent',
+      name: 'SaaS Agent',
+      domain: 'SaaS',
+      description: 'Provide SaaS API services for subscription revenue',
+      capabilities: saasAgent,
+      executor: {
+        execute: async (task) => {
+          this.logs.info('SaaS task: ' + task.name);
+          return { output: 'SaaS task completed' };
+        },
+      },
+    });
+    await this.agentManager.startAgent('saas-agent');
+
+    console.log('✓ Profit agents registered: Content, Ecommerce, Trading, SaaS');
   }
 
   start(): void {
