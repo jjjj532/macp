@@ -336,4 +336,47 @@ ${topic}的技术实现需要综合考虑多方面因素。
     };
     return this.chineseSocialMedia.schedulePost(post, platform, publishTime);
   }
+
+  async generateReadyToPost(topic: string, keywords: string[], platform: ChinesePlatform): Promise<{
+    original: ContentResult;
+    optimized: {
+      title: string;
+      content: string;
+      hashtags: string[];
+      tips: string;
+      bestTime: string;
+    };
+  }> {
+    const original = await this.generateArticle(topic, keywords);
+    const optimized = this.optimizeContentForPlatform(original, platform);
+    
+    const tips: Record<ChinesePlatform, string> = {
+      douyin: '建议配合短视频使用，开头3秒抓眼球',
+      toutiao: '适合长文，标题要吸引人',
+      weibo: '控制在200字以内，配图很重要',
+      xiaohongshu: '图文并茂，结尾加互动引导',
+      zhihu: '专业深度，逻辑清晰',
+      bilibili: '适合教程类内容，结尾引导关注',
+    };
+    
+    const bestTimes: Record<ChinesePlatform, string> = {
+      douyin: '12:00-14:00 或 18:00-21:00',
+      toutiao: '7:00-9:00 或 12:00-13:00',
+      weibo: '9:00-11:00 或 20:00-22:00',
+      xiaohongshu: '10:00-12:00 或 20:00-22:00',
+      zhihu: '8:00-10:00 或 21:00-23:00',
+      bilibili: '18:00-24:00',
+    };
+    
+    return {
+      original,
+      optimized: {
+        title: optimized.optimizedTitle,
+        content: optimized.optimizedContent,
+        hashtags: optimized.recommendedHashtags,
+        tips: tips[platform],
+        bestTime: bestTimes[platform],
+      },
+    };
+  }
 }

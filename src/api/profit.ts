@@ -188,6 +188,28 @@ export class ProfitAPI {
       } catch (error) { res.status(400).json({ error: (error as Error).message }); }
     });
 
+    this.router.post('/content/generate-ready', async (req, res) => {
+      try {
+        const { topic, keywords, platform } = req.body;
+        const result = await this.contentAgent.generateReadyToPost(
+          topic || 'AI人工智能',
+          keywords || ['科技', '创新'],
+          platform || 'xiaohongshu'
+        );
+        res.json(result);
+      } catch (error) { res.status(400).json({ error: (error as Error).message }); }
+    });
+
+    this.router.get('/content/ready/:platform', async (req, res) => {
+      try {
+        const contents = this.contentAgent.getGeneratedContents();
+        const latest = contents[contents.length - 1];
+        if (!latest) throw new Error('No content found. Generate content first.');
+        const result = await this.contentAgent.generateReadyToPost(latest.title, latest.tags, req.params.platform as any);
+        res.json(result);
+      } catch (error) { res.status(400).json({ error: (error as Error).message }); }
+    });
+
     this.router.post('/ecommerce/research', async (req, res) => {
       try {
         const { keywords } = req.body;
