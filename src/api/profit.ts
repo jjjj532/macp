@@ -9,14 +9,34 @@ import { createChineseSocialMediaAPI } from '../integrations/chinese-social/Chin
 export class ProfitAPI {
   private router = express.Router();
   private profitManager = new ProfitManager();
-  private contentAgent = new ContentAgent();
+  private contentAgent: ContentAgent;
   private ecommerceAgent = createEcommerceAPI();
   private tradingAgent: TradingAgent;
   private saasAgent = new SaaSAgent();
   private adNetwork = createAdNetworkAPI();
   private exchangeAPI = createExchangeAPI();
+  private chineseSocialMedia = createChineseSocialMediaAPI();
 
   constructor() {
+    if (config.socialMedia.weibo.enabled && config.socialMedia.weibo.appKey) {
+      this.chineseSocialMedia.configureWeibo(
+        config.socialMedia.weibo.appKey,
+        config.socialMedia.weibo.appSecret,
+        config.socialMedia.weibo.accessToken
+      );
+      console.log('✓ 微博API已配置');
+    }
+    
+    if (config.socialMedia.volcanoEngine.enabled && config.socialMedia.volcanoEngine.accessKeyId) {
+      this.chineseSocialMedia.configureVolcano(
+        config.socialMedia.volcanoEngine.accessKeyId,
+        config.socialMedia.volcanoEngine.secretAccessKey
+      );
+      console.log('✓ 火山引擎API已配置');
+    }
+    
+    this.contentAgent = new ContentAgent({}, this.chineseSocialMedia);
+    
     if (config.ecommerce.apiKey) {
       this.ecommerceAgent.configure(config.ecommerce.apiKey, config.ecommerce.apiSecret, config.ecommerce.storeUrl);
     }

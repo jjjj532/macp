@@ -1,6 +1,38 @@
 import dotenv from 'dotenv';
 dotenv.config();
 
+export interface SocialMediaConfig {
+  weibo: {
+    appKey: string;
+    appSecret: string;
+    accessToken?: string;
+    enabled: boolean;
+  };
+  douyin: {
+    appKey: string;
+    appSecret: string;
+    accessToken?: string;
+    enabled: boolean;
+  };
+  xiaohongshu: {
+    appKey: string;
+    appSecret: string;
+    accessToken?: string;
+    enabled: boolean;
+  };
+  toutiao: {
+    appKey: string;
+    appSecret: string;
+    accessToken?: string;
+    enabled: boolean;
+  };
+  volcanoEngine: {
+    accessKeyId: string;
+    secretAccessKey: string;
+    enabled: boolean;
+  };
+}
+
 export interface AdNetworkConfig {
   provider: 'google_adsense' | 'amazon_ads' | 'facebook_ads' | 'custom';
   apiKey?: string;
@@ -34,6 +66,7 @@ export interface SaaSConfig {
 }
 
 export interface SystemConfig {
+  socialMedia: SocialMediaConfig;
   adNetworks: AdNetworkConfig;
   ecommerce: EcommerceConfig;
   trading: TradingConfig;
@@ -55,6 +88,37 @@ function getBool(key: string, defaultValue: boolean = false): boolean {
 }
 
 export const config: SystemConfig = {
+  socialMedia: {
+    weibo: {
+      appKey: getEnv('WEIBO_APP_KEY'),
+      appSecret: getEnv('WEIBO_APP_SECRET'),
+      accessToken: getEnv('WEIBO_ACCESS_TOKEN'),
+      enabled: getBool('WEIBO_ENABLED', false),
+    },
+    douyin: {
+      appKey: getEnv('DOUYIN_APP_KEY'),
+      appSecret: getEnv('DOUYIN_APP_SECRET'),
+      accessToken: getEnv('DOUYIN_ACCESS_TOKEN'),
+      enabled: getBool('DOUYIN_ENABLED', false),
+    },
+    xiaohongshu: {
+      appKey: getEnv('XHS_APP_KEY'),
+      appSecret: getEnv('XHS_APP_SECRET'),
+      accessToken: getEnv('XHS_ACCESS_TOKEN'),
+      enabled: getBool('XHS_ENABLED', false),
+    },
+    toutiao: {
+      appKey: getEnv('TOUTIAO_APP_KEY'),
+      appSecret: getEnv('TOUTIAO_APP_SECRET'),
+      accessToken: getEnv('TOUTIAO_ACCESS_TOKEN'),
+      enabled: getBool('TOUTIAO_ENABLED', false),
+    },
+    volcanoEngine: {
+      accessKeyId: getEnv('VOLCANO_ACCESS_KEY_ID'),
+      secretAccessKey: getEnv('VOLCANO_SECRET_ACCESS_KEY'),
+      enabled: getBool('VOLCANO_ENABLED', false),
+    },
+  },
   adNetworks: {
     provider: (getEnv('AD_PROVIDER', 'custom') as any) || 'custom',
     apiKey: getEnv('AD_API_KEY'),
@@ -90,8 +154,18 @@ export const config: SystemConfig = {
   },
 };
 
-export function isConfigured(provider: 'ad' | 'ecom' | 'trading' | 'payment'): boolean {
+export function isConfigured(provider: 'weibo' | 'douyin' | 'xiaohongshu' | 'toutiao' | 'volcano' | 'ad' | 'ecom' | 'trading' | 'payment'): boolean {
   switch (provider) {
+    case 'weibo':
+      return !!config.socialMedia.weibo.enabled && !!config.socialMedia.weibo.appKey;
+    case 'douyin':
+      return !!config.socialMedia.douyin.enabled && !!config.socialMedia.douyin.appKey;
+    case 'xiaohongshu':
+      return !!config.socialMedia.xiaohongshu.enabled && !!config.socialMedia.xiaohongshu.appKey;
+    case 'toutiao':
+      return !!config.socialMedia.toutiao.enabled && !!config.socialMedia.toutiao.appKey;
+    case 'volcano':
+      return !!config.socialMedia.volcanoEngine.enabled && !!config.socialMedia.volcanoEngine.accessKeyId;
     case 'ad':
       return !!config.adNetworks.enabled && !!config.adNetworks.apiKey;
     case 'ecom':
@@ -106,12 +180,20 @@ export function isConfigured(provider: 'ad' | 'ecom' | 'trading' | 'payment'): b
 }
 
 export function getStatus(): {
+  socialMedia: { weibo: boolean; douyin: boolean; xiaohongshu: boolean; toutiao: boolean; volcano: boolean };
   ad: { enabled: boolean; configured: boolean };
   ecommerce: { enabled: boolean; configured: boolean };
   trading: { enabled: boolean; configured: boolean; testnet: boolean };
   payment: { enabled: boolean; configured: boolean };
 } {
   return {
+    socialMedia: {
+      weibo: isConfigured('weibo'),
+      douyin: isConfigured('douyin'),
+      xiaohongshu: isConfigured('xiaohongshu'),
+      toutiao: isConfigured('toutiao'),
+      volcano: isConfigured('volcano'),
+    },
     ad: { enabled: config.adNetworks.enabled, configured: isConfigured('ad') },
     ecommerce: { enabled: config.ecommerce.enabled, configured: isConfigured('ecom') },
     trading: { enabled: config.trading.enabled, configured: isConfigured('trading'), testnet: config.trading.testnet },

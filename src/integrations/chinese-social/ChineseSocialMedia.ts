@@ -1,4 +1,5 @@
 import axios from 'axios';
+import crypto from 'crypto';
 
 export type ChinesePlatform = 'douyin' | 'toutiao' | 'weibo' | 'xiaohongshu' | 'zhihu' | 'bilibili';
 
@@ -40,6 +41,8 @@ export class ChineseSocialMediaAPI {
   private configs: Map<ChinesePlatform, { appId: string; appSecret: string; accessToken?: string }> = new Map();
   private posts: Map<string, PlatformPost> = new Map();
   private stats: Map<ChinesePlatform, PlatformStats> = new Map();
+  private weiboConfig: { appKey: string; appSecret: string; accessToken?: string } | null = null;
+  private volcanoConfig: { accessKeyId: string; secretAccessKey: string } | null = null;
 
   constructor() {
     this.initPlatforms();
@@ -66,8 +69,176 @@ export class ChineseSocialMediaAPI {
     return !!this.configs.get(platform)?.accessToken;
   }
 
+  configureWeibo(appKey: string, appSecret: string, accessToken?: string): void {
+    this.weiboConfig = { appKey, appSecret, accessToken };
+  }
+
+  configureVolcano(accessKeyId: string, secretAccessKey: string): void {
+    this.volcanoConfig = { accessKeyId, secretAccessKey };
+    console.log('✓ 火山引擎已配置: AccessKeyId=' + accessKeyId.substring(0, 10) + '...');
+  }
+
+  isVolcanoConfigured(): boolean {
+    return !!this.volcanoConfig?.accessKeyId && !!this.volcanoConfig?.secretAccessKey;
+  }
+
+  private generateVolcanoSignature(method: string, path: string, params: Record<string, string>): string {
+    if (!this.volcanoConfig) return '';
+    
+    const sortedParams = Object.keys(params).sort().map(k => `${k}=${params[k]}`).join('&');
+    const stringToSign = `${method}\n${path}\n${sortedParams}`;
+    
+    const signature = crypto
+      .createHmac('sha256', this.volcanoConfig.secretAccessKey)
+      .update(stringToSign)
+      .digest('base64');
+    
+    return signature;
+  }
+
+  private async publishToDouyinReal(content: PlatformPost, optimized: ContentOptimization): Promise<PlatformPost> {
+    if (!this.volcanoConfig) {
+      throw new Error('火山引擎未配置');
+    }
+
+    try {
+      const timestamp = Date.now().toString();
+      const params = {
+        access_key_id: this.volcanoConfig.accessKeyId,
+        timestamp,
+        signature: this.generateVolcanoSignature('POST', '/api/douyin/v1/content', { content: optimized.optimizedContent, timestamp }),
+      };
+
+      const response = await axios.post<any>('https://api.volcengineapi.com/api/douyin/v1/content',
+        { content: optimized.optimizedContent, title: optimized.optimizedTitle },
+        { params }
+      );
+
+      const post: PlatformPost = {
+        id: `douyin-${response.data?.data?.content_id || Date.now()}`,
+        platform: 'douyin',
+        content: optimized.optimizedContent,
+        title: optimized.optimizedTitle,
+        tags: optimized.recommendedHashtags,
+        published: true,
+        url: `https://www.douyin.com/video/${response.data?.data?.content_id || Date.now()}`,
+        publishedAt: new Date(),
+      };
+
+      this.posts.set(post.id, post);
+      const platformStats = this.stats.get('douyin');
+      if (platformStats) {
+        platformStats.totalPosts++;
+      }
+
+      return post;
+    } catch (error: any) {
+      console.error('抖音发布失败:', error.response?.data || error.message);
+      throw new Error(`抖音发布失败: ${error.response?.data?.message || error.message}`);
+    }
+  }
+
+  private async publishToToutiaoReal(content: PlatformPost, optimized: ContentOptimization): Promise<PlatformPost> {
+    if (!this.volcanoConfig) {
+      throw new Error('火山引擎未配置');
+    }
+
+    try {
+      const timestamp = Date.now().toString();
+      const params = {
+        access_key_id: this.volcanoConfig.accessKeyId,
+        timestamp,
+        signature: this.generateVolcanoSignature('POST', '/api/toutiao/v1/article', { title: optimized.optimizedTitle, timestamp }),
+      };
+
+      const response = await axios.post<any>('https://api.volcengineapi.com/api/toutiao/v1/article',
+        { title: optimized.optimizedTitle, content: optimized.optimizedContent },
+        { params }
+      );
+
+      const post: PlatformPost = {
+        id: `toutiao-${response.data?.data?.article_id || Date.now()}`,
+        platform: 'toutiao',
+        content: optimized.optimizedContent,
+        title: optimized.optimizedTitle,
+        tags: optimized.recommendedHashtags,
+        published: true,
+        url: `https://www.toutiao.com/article/${response.data?.data?.article_id || Date.now()}`,
+        publishedAt: new Date(),
+      };
+
+      this.posts.set(post.id, post);
+      const platformStats = this.stats.get('toutiao');
+      if (platformStats) {
+        platformStats.totalPosts++;
+      }
+
+      return post;
+    } catch (error: any) {
+      console.error('头条发布失败:', error.response?.data || error.message);
+      throw new Error(`头条发布失败: ${error.response?.data?.message || error.message}`);
+    }
+  }
+
+  private async publishToWeiboReal(content: PlatformPost, optimized: ContentOptimization): Promise<PlatformPost> {
+    try {
+      const response = await axios.post<any>('https://api.weibo.com/2/statuses/update.json', 
+        `access_token=${this.weiboConfig?.accessToken}&status=${encodeURIComponent(optimized.optimizedContent)}`,
+        {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+        }
+      );
+      
+      const post: PlatformPost = {
+        id: `weibo-${response.data.id}`,
+        platform: 'weibo',
+        content: optimized.optimizedContent,
+        title: optimized.optimizedTitle,
+        tags: optimized.recommendedHashtags,
+        published: true,
+        url: `https://weibo.com/${response.data.user.id}//${response.data.id}`,
+        likes: response.data.reposts_count || 0,
+        comments: response.data.comments_count || 0,
+        shares: response.data.reposts_count || 0,
+        publishedAt: new Date(),
+      };
+      
+      this.posts.set(post.id, post);
+      const platformStats = this.stats.get('weibo');
+      if (platformStats) {
+        platformStats.totalPosts++;
+      }
+      
+      return post;
+    } catch (error: any) {
+      console.error('Weibo API error:', error.response?.data || error.message);
+      throw new Error(`微博发布失败: ${error.response?.data?.error_message || error.message}`);
+    }
+  }
+
   async publishToPlatform(content: PlatformPost, platform: ChinesePlatform): Promise<PlatformPost> {
     const optimized = this.optimizeForPlatform(content, platform);
+    
+    if (platform === 'weibo' && this.weiboConfig?.accessToken) {
+      return this.publishToWeiboReal(content, optimized);
+    }
+    
+    if (platform === 'douyin' && this.isVolcanoConfigured()) {
+      try {
+        return await this.publishToDouyinReal(content, optimized);
+      } catch (e) {
+        console.warn('抖音真实API失败，使用模拟模式:', (e as Error).message);
+      }
+    }
+    
+    if (platform === 'toutiao' && this.isVolcanoConfigured()) {
+      try {
+        return await this.publishToToutiaoReal(content, optimized);
+      } catch (e) {
+        console.warn('头条真实API失败，使用模拟模式:', (e as Error).message);
+      }
+    }
+    
     const post: PlatformPost = {
       id: `post-${platform}-${Date.now()}`,
       platform,

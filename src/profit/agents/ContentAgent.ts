@@ -28,7 +28,7 @@ export class ContentAgent {
   private chineseSocialMedia: ChineseSocialMediaAPI;
   private supportedPlatforms: ChinesePlatform[] = ['douyin', 'toutiao', 'weibo', 'xiaohongshu', 'zhihu', 'bilibili'];
 
-  constructor(config: Partial<ContentConfig> = {}) {
+  constructor(config: Partial<ContentConfig> = {}, chineseSocialMedia?: ChineseSocialMediaAPI) {
     this.config = {
       style: config.style || 'professional',
       language: config.language || 'zh',
@@ -38,7 +38,7 @@ export class ContentAgent {
     };
     
     this.apiClient = axios.create({ timeout: 30000 });
-    this.chineseSocialMedia = new ChineseSocialMediaAPI();
+    this.chineseSocialMedia = chineseSocialMedia || new ChineseSocialMediaAPI();
   }
 
   async generateArticle(topic: string, keywords: string[]): Promise<ContentResult> {
