@@ -1,21 +1,42 @@
-import express, { Request, Response } from 'express';
-import { ProfitManager, ContentAgent, EcommerceAgent, TradingAgent, SaaSAgent } from '../profit';
+import express from 'express';
+import { ProfitManager, ContentAgent, TradingAgent, SaaSAgent } from '../profit';
+import { config, getStatus } from '../config';
+import { createAdNetworkAPI } from '../integrations/advertising/AdNetworkAPI';
+import { createEcommerceAPI } from '../integrations/ecommerce/EcommerceAPI';
+import { createExchangeAPI } from '../integrations/trading/ExchangeAPI';
+import { createChineseSocialMediaAPI } from '../integrations/chinese-social/ChineseSocialMedia';
 
 export class ProfitAPI {
   private router = express.Router();
   private profitManager = new ProfitManager();
   private contentAgent = new ContentAgent();
-  private ecommerceAgent = new EcommerceAgent();
+  private ecommerceAgent = createEcommerceAPI();
   private tradingAgent: TradingAgent;
   private saasAgent = new SaaSAgent();
+  private adNetwork = createAdNetworkAPI();
+  private exchangeAPI = createExchangeAPI();
 
   constructor() {
+    if (config.ecommerce.apiKey) {
+      this.ecommerceAgent.configure(config.ecommerce.apiKey, config.ecommerce.apiSecret, config.ecommerce.storeUrl);
+    }
+
+    if (config.trading.apiKey) {
+      this.exchangeAPI = createExchangeAPI();
+    }
+
     this.tradingAgent = new TradingAgent();
     this.tradingAgent.reset();
     
     this.setupRoutes();
-    this.startAutoTrading();
-    this.startContentGeneration();
+    
+    if (config.trading.enabled) {
+      this.startAutoTrading();
+    }
+    
+    if (config.adNetworks.enabled) {
+      this.startContentGeneration();
+    }
   }
 
   private setupRoutes(): void {
@@ -30,90 +51,121 @@ export class ProfitAPI {
       });
     });
 
-    this.router.get('/profit/daily', (req, res) => {
-      res.json(this.profitManager.getDailyStats());
-    });
-
-    this.router.get('/profit/total', (req, res) => {
+    this.router.get('/profit/status', (req, res) => {
       res.json({
-        revenue: this.profitManager.getAllTimeRevenue(),
-        costs: this.profitManager.getAllTimeCosts(),
-        profit: this.profitManager.getRunningProfit(),
+        config: getStatus(),
+        integrations: {
+          adNetwork: { provider: config.adNetworks.provider, configured: !!config.adNetworks.apiKey, enabled: config.adNetworks.enabled },
+          ecommerce: { provider: config.ecommerce.provider, configured: !!config.ecommerce.apiKey, enabled: config.ecommerce.enabled },
+          trading: { provider: config.trading.provider, configured: !!config.trading.apiKey, enabled: config.trading.enabled, testnet: config.trading.testnet },
+          payment: { provider: config.payments.provider, configured: !!config.payments.apiKey, enabled: config.payments.enabled },
+        },
       });
     });
 
+    this.router.get('/profit/daily', (req, res) => res.json(this.profitManager.getDailyStats()));
+    this.router.get('/profit/total', (req, res) => res.json({ revenue: this.profitManager.getAllTimeRevenue(), costs: this.profitManager.getAllTimeCosts(), profit: this.profitManager.getRunningProfit() }));
     this.router.post('/profit/track-revenue', async (req, res) => {
       try {
         const { source, type, amount, metadata } = req.body;
-        const revenue = await this.profitManager.trackRevenue({
-          name: source,
-          type: type || 'ads',
-          amount: Number(amount),
-          currency: 'USD',
-          metadata,
-        });
+        const revenue = await this.profitManager.trackRevenue({ name: source, type: type || 'ads', amount: Number(amount), currency: 'USD', metadata });
         res.json(revenue);
-      } catch (error) {
-        res.status(400).json({ error: (error as Error).message });
-      }
+      } catch (error) { res.status(400).json({ error: (error as Error).message }); }
     });
-
     this.router.post('/profit/track-cost', async (req, res) => {
       try {
         const { category, amount, description } = req.body;
-        const cost = await this.profitManager.trackCost({
-          category: category || 'other',
-          amount: Number(amount),
-          description: description || '',
-        });
+        const cost = await this.profitManager.trackCost({ category: category || 'other', amount: Number(amount), description: description || '' });
         res.json(cost);
-      } catch (error) {
-        res.status(400).json({ error: (error as Error).message });
-      }
+      } catch (error) { res.status(400).json({ error: (error as Error).message }); }
     });
-
-    this.router.get('/profit/settlements', (req, res) => {
-      res.json(this.profitManager.getSettlements());
-    });
+    this.router.get('/profit/settlements', (req, res) => res.json(this.profitManager.getSettlements()));
 
     this.router.post('/content/generate', async (req, res) => {
       try {
         const { topic, keywords } = req.body;
-        const content = await this.contentAgent.generateArticle(
-          topic || 'AI',
-          keywords || ['technology', 'innovation']
-        );
+        const content = await this.contentAgent.generateArticle(topic || 'AI', keywords || ['tech', 'innovation']);
         res.json(content);
-      } catch (error) {
-        res.status(400).json({ error: (error as Error).message });
-      }
+      } catch (error) { res.status(400).json({ error: (error as Error).message }); }
     });
-
     this.router.post('/content/publish', async (req, res) => {
       try {
         const { contentId, platform } = req.body;
-        const published = await this.contentAgent.publishToPlatform(
-          await this.contentAgent.getGeneratedContents().find(c => c.id === contentId) || { id: '', title: '', body: '', tags: [], platform: '', published: false },
-          platform || 'medium'
-        );
-        
+        const contents = this.contentAgent.getGeneratedContents();
+        const content = contents.find(c => c.id === contentId);
+        if (!content) throw new Error('Content not found');
+        const published = await this.contentAgent.publishToPlatform(content, platform || 'medium');
         const revenue = await this.contentAgent.simulateAdRevenue(contentId, Math.floor(Math.random() * 10000));
-        await this.profitManager.trackRevenue({
-          name: 'content_ad',
-          type: 'ads',
-          amount: revenue,
-          currency: 'USD',
-          metadata: { contentId, platform },
-        });
-        
+        await this.profitManager.trackRevenue({ name: 'content_ad', type: 'ads', amount: revenue, currency: 'USD', metadata: { contentId, platform } });
         res.json(published);
-      } catch (error) {
-        res.status(400).json({ error: (error as Error).message });
-      }
+      } catch (error) { res.status(400).json({ error: (error as Error).message }); }
+    });
+    this.router.get('/content/list', (req, res) => res.json(this.contentAgent.getGeneratedContents()));
+
+    this.router.get('/content/platforms', (req, res) => {
+      res.json(this.contentAgent.getSupportedPlatforms());
     });
 
-    this.router.get('/content/list', (req, res) => {
-      res.json(this.contentAgent.getGeneratedContents());
+    this.router.get('/content/platforms/all/stats', async (req, res) => {
+      try {
+        const stats = await this.contentAgent.getAllPlatformStats();
+        res.json(stats);
+      } catch (error) { res.status(400).json({ error: (error as Error).message }); }
+    });
+
+    this.router.get('/content/platforms/:platform/stats', async (req, res) => {
+      try {
+        const stats = await this.contentAgent.getPlatformStats(req.params.platform as any);
+        res.json(stats);
+      } catch (error) { res.status(400).json({ error: (error as Error).message }); }
+    });
+
+    this.router.post('/content/publish-chinese', async (req, res) => {
+      try {
+        const { contentId, platform } = req.body;
+        const contents = this.contentAgent.getGeneratedContents();
+        const content = contents.find(c => c.id === contentId);
+        if (!content) throw new Error('Content not found');
+        const published = await this.contentAgent.publishToChinesePlatform(content, platform as any);
+        const revenue = await this.contentAgent.simulateAdRevenue(contentId, Math.floor(Math.random() * 50000));
+        await this.profitManager.trackRevenue({ name: 'content_ad', type: 'ads', amount: revenue, currency: 'CNY', metadata: { contentId, platform } });
+        res.json(published);
+      } catch (error) { res.status(400).json({ error: (error as Error).message }); }
+    });
+
+    this.router.post('/content/publish-all', async (req, res) => {
+      try {
+        const { contentId } = req.body;
+        const contents = this.contentAgent.getGeneratedContents();
+        const content = contents.find(c => c.id === contentId);
+        if (!content) throw new Error('Content not found');
+        const results = await this.contentAgent.publishToMultiplePlatforms(content);
+        const revenue = await this.contentAgent.simulateAdRevenue(contentId, Math.floor(Math.random() * 100000));
+        await this.profitManager.trackRevenue({ name: 'content_ad', type: 'ads', amount: revenue, currency: 'CNY', metadata: { contentId, platforms: results.map(r => r.platform) } });
+        res.json({ published: results, estimatedRevenue: revenue });
+      } catch (error) { res.status(400).json({ error: (error as Error).message }); }
+    });
+
+    this.router.post('/content/optimize', async (req, res) => {
+      try {
+        const { contentId, platform } = req.body;
+        const contents = this.contentAgent.getGeneratedContents();
+        const content = contents.find(c => c.id === contentId);
+        if (!content) throw new Error('Content not found');
+        const optimized = this.contentAgent.optimizeContentForPlatform(content, platform as any);
+        res.json(optimized);
+      } catch (error) { res.status(400).json({ error: (error as Error).message }); }
+    });
+
+    this.router.post('/content/schedule', async (req, res) => {
+      try {
+        const { contentId, platform, publishTime } = req.body;
+        const contents = this.contentAgent.getGeneratedContents();
+        const content = contents.find(c => c.id === contentId);
+        if (!content) throw new Error('Content not found');
+        const scheduled = await this.contentAgent.schedulePost(content, platform as any, new Date(publishTime));
+        res.json(scheduled);
+      } catch (error) { res.status(400).json({ error: (error as Error).message }); }
     });
 
     this.router.post('/ecommerce/research', async (req, res) => {
@@ -121,120 +173,79 @@ export class ProfitAPI {
         const { keywords } = req.body;
         const products = await this.ecommerceAgent.researchProducts(keywords || ['tech', 'gadget']);
         res.json(products);
-      } catch (error) {
-        res.status(400).json({ error: (error as Error).message });
-      }
+      } catch (error) { res.status(400).json({ error: (error as Error).message }); }
     });
-
     this.router.post('/ecommerce/order', async (req, res) => {
       try {
         const { productId, quantity } = req.body;
         const order = await this.ecommerceAgent.simulateOrder(productId, quantity || 1);
-        
-        await this.profitManager.trackRevenue({
-          name: 'ecommerce_sale',
-          type: 'sales',
-          amount: order.total,
-          currency: 'USD',
-          metadata: { orderId: order.id },
-        });
-        
+        await this.profitManager.trackRevenue({ name: 'ecommerce_sale', type: 'sales', amount: order.total, currency: 'USD', metadata: { orderId: order.id } });
         res.json(order);
-      } catch (error) {
-        res.status(400).json({ error: (error as Error).message });
-      }
+      } catch (error) { res.status(400).json({ error: (error as Error).message }); }
     });
-
-    this.router.get('/ecommerce/products', (req, res) => {
-      res.json({
-        top: this.ecommerceAgent.getTopProducts(),
-        lowStock: this.ecommerceAgent.getLowStockProducts(),
-        revenue: this.ecommerceAgent.getTotalRevenue(),
-      });
+    this.router.get('/ecommerce/products', async (req, res) => {
+      res.json({ top: await this.ecommerceAgent.getTopProducts(), lowStock: await this.ecommerceAgent.getLowStockProducts(), revenue: await this.ecommerceAgent.getTotalRevenue() });
     });
 
     this.router.get('/trading/portfolio', (req, res) => {
-      res.json({
-        balance: this.tradingAgent.getBalance(),
-        positions: this.tradingAgent.getPositions(),
-        totalValue: this.tradingAgent.getPortfolioValue(),
-        totalPnL: this.tradingAgent.getTotalPnL(),
-        totalPnLPercent: this.tradingAgent.getTotalPnLPercent(),
-      });
+      res.json({ balance: this.tradingAgent.getBalance(), positions: this.tradingAgent.getPositions(), totalValue: this.tradingAgent.getPortfolioValue(), totalPnL: this.tradingAgent.getTotalPnL(), totalPnLPercent: this.tradingAgent.getTotalPnLPercent() });
     });
-
-    this.router.get('/trading/signals', (req, res) => {
-      res.json(this.tradingAgent.getSignals());
-    });
-
-    this.router.get('/trading/trades', (req, res) => {
-      res.json(this.tradingAgent.getRecentTrades());
-    });
-
+    this.router.get('/trading/signals', (req, res) => res.json(this.tradingAgent.getSignals()));
+    this.router.get('/trading/trades', (req, res) => res.json(this.tradingAgent.getRecentTrades()));
     this.router.post('/trading/trade', async (req, res) => {
       try {
         const { symbol } = req.body;
         const signal = await this.tradingAgent.generateSignal(symbol || 'BTC');
         const trade = await this.tradingAgent.executeTrade(signal);
-        
-        if (trade) {
-          await this.profitManager.trackRevenue({
-            name: 'trading_profit',
-            type: 'trading',
-            amount: Math.abs(trade.pnl || 0),
-            currency: 'USD',
-            metadata: { tradeId: trade.id, symbol },
-          });
+        if (trade && trade.pnl) {
+          await this.profitManager.trackRevenue({ name: 'trading_pnl', type: 'trading', amount: Math.abs(trade.pnl), currency: 'USD', metadata: { tradeId: trade.id, symbol } });
         }
-        
         res.json({ signal, trade });
-      } catch (error) {
-        res.status(400).json({ error: (error as Error).message });
-      }
+      } catch (error) { res.status(400).json({ error: (error as Error).message }); }
     });
 
-    this.router.get('/saas/plans', (req, res) => {
-      res.json(this.saasAgent.getPlans());
-    });
-
+    this.router.get('/saas/plans', (req, res) => res.json(this.saasAgent.getPlans()));
     this.router.post('/saas/create-key', async (req, res) => {
       try {
         const { userId, planId } = req.body;
         const apiKey = await this.saasAgent.createAPIKey(userId || 'user_1', planId);
         res.json(apiKey);
-      } catch (error) {
-        res.status(400).json({ error: (error as Error).message });
-      }
+      } catch (error) { res.status(400).json({ error: (error as Error).message }); }
     });
-
-    this.router.get('/saas/stats', (req, res) => {
-      res.json({
-        revenue: this.saasAgent.getMonthlyRevenue(),
-        users: this.saasAgent.getTotalUsers(),
-        plans: this.saasAgent.getPlans(),
-      });
-    });
-
+    this.router.get('/saas/stats', (req, res) => res.json({ revenue: this.saasAgent.getMonthlyRevenue(), users: this.saasAgent.getTotalUsers(), plans: this.saasAgent.getPlans() }));
     this.router.post('/saas/upgrade', async (req, res) => {
       try {
         const { userId, planId } = req.body;
         const result = await this.saasAgent.upgradePlan(userId, planId);
-        
         const plan = this.saasAgent.getPlans().find(p => p.id === planId);
         if (plan && plan.price > 0) {
-          await this.profitManager.trackRevenue({
-            name: 'saas_subscription',
-            type: 'subscription',
-            amount: plan.price,
-            currency: 'USD',
-            metadata: { userId, planId },
-          });
+          await this.profitManager.trackRevenue({ name: 'saas_subscription', type: 'subscription', amount: plan.price, currency: 'USD', metadata: { userId, planId } });
         }
-        
         res.json(result);
-      } catch (error) {
-        res.status(400).json({ error: (error as Error).message });
-      }
+      } catch (error) { res.status(400).json({ error: (error as Error).message }); }
+    });
+
+    this.router.get('/profit/test-apis', async (req, res) => {
+      const results: any = {};
+      if (config.trading.enabled && config.trading.apiKey) {
+        try { 
+          const prices = await this.exchangeAPI.getPrices(['BTC', 'ETH']); 
+          results.trading = { success: true, prices: prices.map(p => ({ symbol: p.symbol, price: p.price })) }; 
+        } catch (e: any) { results.trading = { success: false, error: e.message }; }
+      } else { results.trading = { success: true, mode: 'simulation' }; }
+      if (config.ecommerce.enabled && config.ecommerce.apiKey) {
+        try { 
+          const products = await this.ecommerceAgent.getProducts(5); 
+          results.ecommerce = { success: true, productCount: products.length }; 
+        } catch (e: any) { results.ecommerce = { success: false, error: e.message }; }
+      } else { results.ecommerce = { success: true, mode: 'simulation' }; }
+      if (config.adNetworks.enabled && config.adNetworks.apiKey) {
+        try { 
+          const earnings = await this.adNetwork.getEarnings(); 
+          results.adNetwork = { success: true, earnings }; 
+        } catch (e: any) { results.adNetwork = { success: false, error: e.message }; }
+      } else { results.adNetwork = { success: true, mode: 'simulation' }; }
+      res.json(results);
     });
   }
 
@@ -246,56 +257,29 @@ export class ProfitAPI {
           if (signal.action !== 'hold') {
             const trade = await this.tradingAgent.executeTrade(signal);
             if (trade && trade.pnl) {
-              await this.profitManager.trackRevenue({
-                name: 'trading_pnl',
-                type: 'trading',
-                amount: Math.abs(trade.pnl),
-                currency: 'USD',
-                metadata: { tradeId: trade.id, symbol },
-              });
+              await this.profitManager.trackRevenue({ name: 'trading_pnl', type: 'trading', amount: Math.abs(trade.pnl), currency: 'USD', metadata: { tradeId: trade.id, symbol } });
             }
           }
-        } catch (e) {
-          console.error('Trading error:', e);
-        }
+        } catch (e) { console.error('Trading error:', e); }
       }
-      
       await this.tradingAgent.updatePositions();
-    }, 30000);
+    }, config.general.tradingInterval || 30000);
   }
 
   private startContentGeneration(): void {
+    const topics = ['AI Technology', 'Machine Learning', 'Blockchain', 'Cloud Computing'];
+    const keywordsList = [['AI', 'automation', 'future'], ['ML', 'deep learning', 'neural'], ['crypto', 'defi', 'web3'], ['cloud', 'devops', 'kubernetes']];
     setInterval(async () => {
-      const topics = ['AI Technology', 'Machine Learning', 'Blockchain', 'Cloud Computing'];
-      const keywords = [
-        ['AI', 'automation', 'future'],
-        ['ML', 'deep learning', 'neural'],
-        ['crypto', 'defi', 'web3'],
-        ['cloud', 'devops', 'kubernetes'],
-      ];
-      
       const topic = topics[Math.floor(Math.random() * topics.length)];
-      const kw = keywords[Math.floor(Math.random() * keywords.length)];
-      
+      const kw = keywordsList[Math.floor(Math.random() * keywordsList.length)];
       try {
         const content = await this.contentAgent.generateArticle(topic, kw);
         const published = await this.contentAgent.publishToPlatform(content, 'medium');
         const revenue = await this.contentAgent.simulateAdRevenue(content.id, Math.floor(Math.random() * 50000 + 10000));
-        
-        await this.profitManager.trackRevenue({
-          name: 'content_ad_revenue',
-          type: 'ads',
-          amount: revenue,
-          currency: 'USD',
-          metadata: { contentId: content.id, topic },
-        });
-      } catch (e) {
-        console.error('Content generation error:', e);
-      }
-    }, 60000);
+        await this.profitManager.trackRevenue({ name: 'content_ad_revenue', type: 'ads', amount: revenue, currency: 'USD', metadata: { contentId: content.id, topic } });
+      } catch (e) { console.error('Content generation error:', e); }
+    }, config.general.contentInterval || 60000);
   }
 
-  getRouter() {
-    return this.router;
-  }
+  getRouter() { return this.router; }
 }

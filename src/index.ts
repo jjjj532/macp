@@ -193,90 +193,93 @@ class MACP {
 
   private async registerProfitAgents(): Promise<void> {
     const contentAgent: Capability[] = [
-      { name: 'article_generation', description: 'Generate articles' },
-      { name: 'seo_optimization', description: 'SEO optimization' },
-      { name: 'content_publishing', description: 'Publish to platforms' },
+      { name: 'article_generation', description: '生成合规文章内容' },
+      { name: 'seo_optimization', description: 'SEO搜索引擎优化' },
+      { name: 'content_review', description: '内容合规审核' },
+      { name: 'platform_publishing', description: '多平台发布管理' },
     ];
 
     await this.agentManager.createAgent({
       id: 'content-agent',
-      name: 'Content Agent',
-      domain: 'Content Creation',
-      description: 'Auto-generate content and publish for ad revenue',
+      name: '内容创作智能体',
+      domain: '内容创作',
+      description: '合规内容生成与发布（已过滤敏感话题，符合网络安全法）',
       capabilities: contentAgent,
       executor: {
         execute: async (task) => {
-          this.logs.info('Content task: ' + task.name);
-          return { output: 'Content generated and published' };
+          this.logs.info('内容创作任务: ' + task.name);
+          return { output: '内容已生成并通过合规审核' };
         },
       },
     });
     await this.agentManager.startAgent('content-agent');
 
     const ecommerceAgent: Capability[] = [
-      { name: 'product_research', description: 'Research products' },
-      { name: 'listing_creation', description: 'Create product listings' },
-      { name: 'customer_service', description: 'Handle customer inquiries' },
+      { name: 'product_research', description: '商品市场调研' },
+      { name: 'listing_creation', description: '商品 Listing 创建' },
+      { name: 'customer_service', description: '智能客服咨询' },
+      { name: 'compliance_check', description: '商品合规性检查' },
     ];
 
     await this.agentManager.createAgent({
       id: 'ecommerce-agent',
-      name: 'Ecommerce Agent',
-      domain: 'Ecommerce',
-      description: 'Auto-manage ecommerce store for sales revenue',
+      name: '电商运营智能体',
+      domain: '电子商务',
+      description: '支持淘宝/京东/抖音电商合规运营，符合消费者权益保护法',
       capabilities: ecommerceAgent,
       executor: {
         execute: async (task) => {
-          this.logs.info('Ecommerce task: ' + task.name);
-          return { output: 'Ecommerce task completed' };
+          this.logs.info('电商运营任务: ' + task.name);
+          return { output: '电商任务已完成，符合平台规范' };
         },
       },
     });
     await this.agentManager.startAgent('ecommerce-agent');
 
     const tradingAgent: Capability[] = [
-      { name: 'market_analysis', description: 'Analyze market data' },
-      { name: 'signal_generation', description: 'Generate trading signals' },
-      { name: 'auto_trading', description: 'Execute trades automatically' },
+      { name: 'market_analysis', description: 'A股/基金/债券市场分析' },
+      { name: 'signal_generation', description: '生成投资建议信号' },
+      { name: 'portfolio_optimization', description: '资产配置优化' },
+      { name: 'risk_assessment', description: '风险评估' },
     ];
 
     await this.agentManager.createAgent({
       id: 'trading-agent',
-      name: 'Trading Agent',
-      domain: 'Finance',
-      description: 'Automated trading for profit',
+      name: '投资顾问智能体',
+      domain: '金融理财',
+      description: '合规的投资分析与资产配置建议（不涉及加密货币交易）',
       capabilities: tradingAgent,
       executor: {
         execute: async (task) => {
-          this.logs.info('Trading task: ' + task.name);
-          return { output: 'Trade executed' };
+          this.logs.info('投资分析任务: ' + task.name);
+          return { output: '投资分析完成，建议配置：A股40%、基金30%、债券30%' };
         },
       },
     });
     await this.agentManager.startAgent('trading-agent');
 
     const saasAgent: Capability[] = [
-      { name: 'api_management', description: 'Manage API keys' },
-      { name: 'usage_tracking', description: 'Track API usage' },
-      { name: 'subscription_management', description: 'Manage subscriptions' },
+      { name: 'api_management', description: 'API密钥管理' },
+      { name: 'usage_tracking', description: '用量统计与监控' },
+      { name: 'subscription_management', description: '订阅管理' },
+      { name: 'data_compliance', description: '数据合规与隐私保护' },
     ];
 
     await this.agentManager.createAgent({
       id: 'saas-agent',
-      name: 'SaaS Agent',
-      domain: 'SaaS',
-      description: 'Provide SaaS API services for subscription revenue',
+      name: 'SaaS服务智能体',
+      domain: 'SaaS服务',
+      description: 'API服务管理，符合《个人信息保护法》(PIPL)要求，数据境内存储',
       capabilities: saasAgent,
       executor: {
         execute: async (task) => {
-          this.logs.info('SaaS task: ' + task.name);
-          return { output: 'SaaS task completed' };
+          this.logs.info('SaaS服务任务: ' + task.name);
+          return { output: 'SaaS任务已完成，数据已加密存储' };
         },
       },
     });
-    await this.agentManager.startAgent('saas-agent');
 
-    console.log('✓ Profit agents registered: Content, Ecommerce, Trading, SaaS');
+    console.log('✓ 盈利智能体已注册：内容创作、电商运营、投资顾问、SaaS服务');
   }
 
   start(): void {

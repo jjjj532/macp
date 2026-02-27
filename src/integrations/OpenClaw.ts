@@ -48,7 +48,7 @@ export interface Session {
 }
 
 export class OpenClawIntegration {
-  private client: AxiosInstance;
+  private client: any;
   private baseUrl: string;
 
   constructor(config: OpenClawConfig) {
@@ -85,7 +85,7 @@ export class OpenClawIntegration {
     };
     
     try {
-      const response = await this.client.post<ChatResponse>(
+      const response = await this.client.post(
         '/v1/chat/completions', 
         request
       );

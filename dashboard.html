@@ -162,19 +162,22 @@
     let agents = [], tasks = [], logs = [];
     let currentTab = 'dashboard';
     let profitData = {daily: {revenue: 0, costs: 0, profit: 0}, total: 0, breakdown: {}};
+    let platformStats = [];
     
     async function fetchData() {
       try {
-        const [a, t, l, p] = await Promise.all([
+        const [a, t, l, p, ps] = await Promise.all([
           fetch(API + '/agents').then(r => r.json()).catch(() => []),
           fetch(API + '/tasks').then(r => r.json()).catch(() => []),
           fetch(API + '/logs').then(r => r.json()).catch(() => []),
-          fetch(API + '/profit').then(r => r.json()).catch(() => ({daily: {revenue: 0, costs: 0, profit: 0}, total: 0, breakdown: {}}))
+          fetch(API + '/profit').then(r => r.json()).catch(() => ({daily: {revenue: 0, costs: 0, profit: 0}, total: 0, breakdown: {}})),
+          fetch(API + '/content/platforms/all/stats').then(r => r.json()).catch(() => [])
         ]);
         agents = a || [];
         tasks = t || [];
         logs = Array.isArray(l) ? l.slice(-30) : [];
         profitData = p || {daily: {revenue: 0, costs: 0, profit: 0}, total: 0, breakdown: {}};
+        platformStats = ps || [];
         render();
       } catch(e) { 
         console.error('Fetch error:', e); 
@@ -223,8 +226,8 @@
                 '<div class="agent-header"><div class="agent-avatar ' + a.status + '">🤖</div><span class="status-badge ' + a.status + '">' + 
                   (a.status === 'idle' ? '空闲' : a.status === 'busy' ? '忙碌' : '错误') + 
                 '</span></div>' +
-                '<div class="agent-name">' + (a.name === 'Code Agent' ? '代码智能体' : a.name === 'OpenClaw Agent' ? 'OpenClaw智能体' : a.name === 'Content Agent' ? '内容创作智能体' : a.name === 'Ecommerce Agent' ? '电商智能体' : a.name === 'Trading Agent' ? '交易智能体' : a.name === 'SaaS Agent' ? 'SaaS智能体' : a.name) + '</div>' +
-                '<div class="agent-domain">' + (a.domain === 'Software Development' ? '软件开发' : a.domain === 'AI Assistant' ? 'AI助手' : a.domain === 'Content Creation' ? '内容创作' : a.domain === 'Ecommerce' ? '电商' : a.domain === 'Finance' ? '金融' : a.domain === 'SaaS' ? 'SaaS服务' : a.domain) + '</div>' +
+                '<div class="agent-name">' + (a.name === 'Code Agent' ? '代码智能体' : a.name === 'OpenClaw Agent' ? 'OpenClaw智能体' : a.name === 'Content Agent' ? '内容创作智能体' : a.name === 'Ecommerce Agent' ? '电商运营智能体' : a.name === 'Trading Agent' ? '投资顾问智能体' : a.name === 'SaaS Agent' ? 'SaaS服务智能体' : a.name) + '</div>' +
+                '<div class="agent-domain">' + (a.domain === 'Software Development' ? '软件开发' : a.domain === 'AI Assistant' ? 'AI助手' : a.domain === 'Content Creation' ? '内容创作' : a.domain === 'Ecommerce' ? '电子商务' : a.domain === 'Finance' ? '金融理财' : a.domain === 'SaaS' ? 'SaaS服务' : a.domain) + '</div>' +
                 '<div class="agent-desc">' + (a.description || '') + '</div>' +
                 '<div class="caps">' + 
                   (a.capabilities ? a.capabilities.map(c => {
@@ -232,10 +235,10 @@
                     const cn = {
                       chat: 'AI对话', invoke_tool: '调用工具', list_sessions: '列出会话', session_management: '会话管理', 
                       code_generation: '代码生成', code_review: '代码审查',
-                      article_generation: '文章生成', seo_optimization: 'SEO优化', content_publishing: '内容发布',
-                      product_research: '商品调研', listing_creation: '商品上架', customer_service: '智能客服',
-                      market_analysis: '市场分析', signal_generation: '信号生成', auto_trading: '自动交易',
-                      api_management: 'API管理', usage_tracking: '用量追踪', subscription_management: '订阅管理'
+                      article_generation: '文章生成', seo_optimization: 'SEO优化', content_publishing: '内容发布', content_review: '内容审核', platform_publishing: '平台发布',
+                      product_research: '商品调研', listing_creation: '商品上架', customer_service: '智能客服', compliance_check: '合规检查',
+                      market_analysis: '市场分析', signal_generation: '信号生成', portfolio_optimization: '资产配置', risk_assessment: '风险评估',
+                      api_management: 'API管理', usage_tracking: '用量追踪', subscription_management: '订阅管理', data_compliance: '数据合规'
                     }[name] || name;
                     return '<span class="cap">' + cn + '</span>';
                   }).join('') : '') + 
@@ -270,24 +273,33 @@
         const profit = profitData || {daily: {revenue: 0, costs: 0, profit: 0}, total: 0, breakdown: {}};
         c.innerHTML = 
           '<div class="stats">' +
-            '<div class="stat"><div class="stat-label">今日收入</div><div class="stat-value" style="color:var(--success)">$' + profit.daily.revenue.toFixed(2) + '</div></div>' +
-            '<div class="stat"><div class="stat-label">今日成本</div><div class="stat-value" style="color:var(--error)">$' + profit.daily.costs.toFixed(2) + '</div></div>' +
-            '<div class="stat"><div class="stat-label">今日利润</div><div class="stat-value" style="color:' + (profit.daily.profit >= 0 ? 'var(--success)' : 'var(--error)') + '">$' + profit.daily.profit.toFixed(2) + '</div></div>' +
-            '<div class="stat"><div class="stat-label">总收入</div><div class="stat-value">$' + profit.total.toFixed(2) + '</div></div>' +
+            '<div class="stat"><div class="stat-label">今日收入</div><div class="stat-value" style="color:var(--success)">¥' + profit.daily.revenue.toFixed(2) + '</div></div>' +
+            '<div class="stat"><div class="stat-label">今日成本</div><div class="stat-value" style="color:var(--error)">¥' + profit.daily.costs.toFixed(2) + '</div></div>' +
+            '<div class="stat"><div class="stat-label">今日利润</div><div class="stat-value" style="color:' + (profit.daily.profit >= 0 ? 'var(--success)' : 'var(--error)') + '">¥' + profit.daily.profit.toFixed(2) + '</div></div>' +
+            '<div class="stat"><div class="stat-label">总收入</div><div class="stat-value">¥' + profit.total.toFixed(2) + '</div></div>' +
           '</div>' +
           '<div class="section">' +
             '<div class="section-header"><h2 class="section-title">💰 盈利模式</h2></div>' +
             '<div class="agents">' + 
-              '<div class="agent"><div class="agent-header"><div class="agent-avatar idle">📝</div><span class="status-badge idle">运行中</span></div><div class="agent-name">内容创作 + 广告</div><div class="agent-domain">自动生成内容，通过广告联盟盈利</div><div class="agent-desc">自动追踪热点、生成文章、发布到平台、嵌入广告</div><div class="caps"><span class="cap">文章生成</span><span class="cap">SEO优化</span><span class="cap">广告投放</span></div></div>' +
-              '<div class="agent"><div class="agent-header"><div class="agent-avatar idle">🛒</div><span class="status-badge idle">运行中</span></div><div class="agent-name">电商代运营</div><div class="agent-domain">自动分析商品、上架、客服</div><div class="agent-desc">商品调研、文案生成、智能客服、评价管理</div><div class="caps"><span class="cap">选品分析</span><span class="cap">自动上架</span><span class="cap">智能客服</span></div></div>' +
-              '<div class="agent"><div class="agent-header"><div class="agent-avatar ' + (profit.daily.profit >= 0 ? 'idle' : 'busy') + '">📈</div><span class="status-badge ' + (profit.daily.profit >= 0 ? 'idle' : 'busy') + '">' + (profit.daily.profit >= 0 ? '盈利中' : '亏损中') + '</span></div><div class="agent-name">AI 量化交易</div><div class="agent-domain">自动分析市场、执行交易</div><div class="agent-desc">市场数据采集、技术分析、信号生成、自动交易</div><div class="caps"><span class="cap">技术分析</span><span class="cap">信号生成</span><span class="cap">自动交易</span></div></div>' +
-              '<div class="agent"><div class="agent-header"><div class="agent-avatar idle">☁️</div><span class="status-badge idle">运行中</span></div><div class="agent-name">SaaS API 服务</div><div class="agent-domain">提供 AI API 服务，按调用收费</div><div class="agent-desc">API 密钥管理、用量统计、订阅计费</div><div class="caps"><span class="cap">API调用</span><span class="cap">用量计费</span><span class="cap">订阅管理</span></div></div>' +
+              '<div class="agent"><div class="agent-header"><div class="agent-avatar idle">📝</div><span class="status-badge idle">运行中</span></div><div class="agent-name">内容创作智能体</div><div class="agent-domain">中国社交媒体平台内容创作与发布</div><div class="agent-desc">抖音、今日头条、微博、小红书、知乎、B站 一键分发</div><div class="caps"><span class="cap">🎵抖音</span><span class="cap">📰头条</span><span class="cap">📕小红书</span><span class="cap">💬知乎</span></div></div>' +
+              '<div class="agent"><div class="agent-header"><div class="agent-avatar idle">🛒</div><span class="status-badge idle">运行中</span></div><div class="agent-name">电商代运营</div><div class="agent-domain">支持淘宝/京东/抖音电商合规运营</div><div class="agent-desc">商品调研、Listing创建、智能客服、消费者权益保护</div><div class="caps"><span class="cap">选品分析</span><span class="cap">自动上架</span><span class="cap">合规审查</span></div></div>' +
+              '<div class="agent"><div class="agent-header"><div class="agent-avatar ' + (profit.daily.profit >= 0 ? 'idle' : 'busy') + '">📈</div><span class="status-badge ' + (profit.daily.profit >= 0 ? 'idle' : 'busy') + '">' + (profit.daily.profit >= 0 ? '分析中' : '分析中') + '</span></div><div class="agent-name">投资顾问</div><div class="agent-domain">A股/基金/债券分析与资产配置</div><div class="agent-desc">市场数据分析、投资建议、资产配置优化、风险评估（合规分析，不含实际交易）</div><div class="caps"><span class="cap">行情分析</span><span class="cap">投资建议</span><span class="cap">风险评估</span></div></div>' +
+              '<div class="agent"><div class="agent-header"><div class="agent-avatar idle">☁️</div><span class="status-badge idle">运行中</span></div><div class="agent-name">SaaS API 服务</div><div class="agent-domain">提供 AI API 服务，符合PIPL要求</div><div class="agent-desc">API密钥管理、用量统计、订阅计费、数据境内存储</div><div class="caps"><span class="cap">API管理</span><span class="cap">用量计费</span><span class="cap">隐私保护</span></div></div>' +
+            '</div></div>' +
+          '<div class="section">' +
+            '<div class="section-header"><h2 class="section-title">📱 中国社交媒体平台</h2></div>' +
+            '<div class="stats">' +
+              (platformStats.length > 0 ? platformStats.map(ps => 
+                '<div class="stat"><div class="stat-label">' + 
+                (ps.platform === 'douyin' ? '🎵 抖音' : ps.platform === 'toutiao' ? '📰 头条' : ps.platform === 'weibo' ? '📱 微博' : ps.platform === 'xiaohongshu' ? '📕 小红书' : ps.platform === 'zhihu' ? '💬 知乎' : ps.platform === 'bilibili' ? '📺 B站' : ps.platform) + 
+                '</div><div class="stat-value">' + ps.totalFollowers.toLocaleString() + ' 粉丝</div></div>'
+              ).join('') : '<div class="stat"><div class="stat-label">🎵 抖音</div><div class="stat-value">-</div></div><div class="stat"><div class="stat-label">📰 头条</div><div class="stat-value">-</div></div><div class="stat"><div class="stat-label">📕 小红书</div><div class="stat-value">-</div></div><div class="stat"><div class="stat-label">💬 知乎</div><div class="stat-value">-</div></div><div class="stat"><div class="stat-label">📺 B站</div><div class="stat-value">-</div></div><div class="stat"><div class="stat-label">📱 微博</div><div class="stat-value">-</div></div>') +
             '</div></div>' +
           '<div class="section">' +
             '<div class="section-header"><h2 class="section-title">📊 收入分布</h2></div>' +
             '<div class="tasks">' + 
               (Object.entries(profit.breakdown).map(([source, amount]) => 
-                '<div class="task"><div class="task-info"><div class="task-name">' + source + '</div><div class="task-meta">' + (source === 'ads' ? '广告分成' : source === 'sales' ? '销售分成' : source === 'trading' ? '交易盈利' : source === 'subscription' ? '订阅收入' : source === 'api_call' ? 'API调用' : source) + '</div></div><span class="task-status completed">$' + (amount || 0).toFixed(2) + '</span></div>'
+                '<div class="task"><div class="task-info"><div class="task-name">' + source + '</div><div class="task-meta">' + (source === 'ads' ? '广告分成' : source === 'sales' ? '销售分成' : source === 'trading' ? '投资分析' : source === 'subscription' ? '订阅收入' : source === 'api_call' ? 'API调用' : source) + '</div></div><span class="task-status completed">¥' + (amount || 0).toFixed(2) + '</span></div>'
               ).join('') || '<div class="empty">暂无收入数据</div>') +
             '</div></div>';
       }

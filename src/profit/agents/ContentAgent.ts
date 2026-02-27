@@ -1,5 +1,6 @@
 import { Task } from '../../core/types';
 import axios from 'axios';
+import { ChineseSocialMediaAPI, ChinesePlatform, PlatformPost, PlatformStats } from '../../integrations/chinese-social/ChineseSocialMedia';
 
 export interface ContentConfig {
   style: 'professional' | 'casual' | 'humor' | 'technical';
@@ -22,19 +23,22 @@ export interface ContentResult {
 
 export class ContentAgent {
   private config: ContentConfig;
-  private apiClient: AxiosInstance;
+  private apiClient: any;
   private generatedContents: Map<string, ContentResult> = new Map();
+  private chineseSocialMedia: ChineseSocialMediaAPI;
+  private supportedPlatforms: ChinesePlatform[] = ['douyin', 'toutiao', 'weibo', 'xiaohongshu', 'zhihu', 'bilibili'];
 
   constructor(config: Partial<ContentConfig> = {}) {
     this.config = {
       style: config.style || 'professional',
       language: config.language || 'zh',
       wordCount: config.wordCount || { min: 500, max: 2000 },
-      platforms: config.platforms || ['medium', 'twitter'],
+      platforms: config.platforms || ['xiaohongshu', 'weibo', 'douyin'],
       postingSchedule: config.postingSchedule || [9, 12, 18, 21],
     };
     
     this.apiClient = axios.create({ timeout: 30000 });
+    this.chineseSocialMedia = new ChineseSocialMediaAPI();
   }
 
   async generateArticle(topic: string, keywords: string[]): Promise<ContentResult> {
@@ -252,5 +256,84 @@ ${topic}的技术实现需要综合考虑多方面因素。
 
   updateConfig(updates: Partial<ContentConfig>): void {
     this.config = { ...this.config, ...updates };
+  }
+
+  async publishToChinesePlatform(content: ContentResult, platform: ChinesePlatform): Promise<PlatformPost> {
+    const post: PlatformPost = {
+      id: content.id,
+      platform,
+      content: content.body,
+      title: content.title,
+      tags: content.tags,
+      published: false,
+    };
+    
+    const published = await this.chineseSocialMedia.publishToPlatform(post, platform);
+    
+    content.published = true;
+    content.platform = platform;
+    content.url = published.url;
+    this.generatedContents.set(content.id, content);
+    
+    return published;
+  }
+
+  async publishToMultiplePlatforms(content: ContentResult): Promise<PlatformPost[]> {
+    const results: PlatformPost[] = [];
+    const platforms = this.config.platforms as ChinesePlatform[];
+    
+    for (const platform of platforms) {
+      try {
+        const result = await this.publishToChinesePlatform(content, platform);
+        results.push(result);
+      } catch (e) {
+        console.error(`Failed to publish to ${platform}:`, e);
+      }
+    }
+    
+    return results;
+  }
+
+  async getPlatformStats(platform: ChinesePlatform): Promise<PlatformStats | null> {
+    return this.chineseSocialMedia.getPlatformStats(platform);
+  }
+
+  async getAllPlatformStats(): Promise<PlatformStats[]> {
+    return this.chineseSocialMedia.getAllStats();
+  }
+
+  getSupportedPlatforms(): { id: ChinesePlatform; name: string; icon: string }[] {
+    return [
+      { id: 'douyin', name: '抖音', icon: '🎵' },
+      { id: 'toutiao', name: '今日头条', icon: '📰' },
+      { id: 'weibo', name: '微博', icon: '📱' },
+      { id: 'xiaohongshu', name: '小红书', icon: '📕' },
+      { id: 'zhihu', name: '知乎', icon: '💬' },
+      { id: 'bilibili', name: 'B站', icon: '📺' },
+    ];
+  }
+
+  optimizeContentForPlatform(content: ContentResult, platform: ChinesePlatform) {
+    const post: PlatformPost = {
+      id: content.id,
+      platform,
+      content: content.body,
+      title: content.title,
+      tags: content.tags,
+      published: false,
+    };
+    return this.chineseSocialMedia.optimizeForPlatform(post, platform);
+  }
+
+  async schedulePost(content: ContentResult, platform: ChinesePlatform, publishTime: Date): Promise<{ scheduledId: string; publishTime: Date }> {
+    const post: PlatformPost = {
+      id: content.id,
+      platform,
+      content: content.body,
+      title: content.title,
+      tags: content.tags,
+      published: false,
+    };
+    return this.chineseSocialMedia.schedulePost(post, platform, publishTime);
   }
 }

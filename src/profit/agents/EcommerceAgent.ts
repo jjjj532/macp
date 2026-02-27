@@ -36,7 +36,7 @@ export class EcommerceAgent {
   private config: EcommerceConfig;
   private products: Map<string, Product> = new Map();
   private orders: Map<string, Order> = new Map();
-  private apiClient: AxiosInstance;
+  private apiClient: any;
 
   constructor(config: Partial<EcommerceConfig> = {}) {
     this.config = {
