@@ -24,6 +24,37 @@ export interface Agent {
   maxConcurrentTasks?: number;
   createdAt: Date;
   updatedAt: Date;
+  soul?: AgentSOUL;
+}
+
+export interface AgentSOUL {
+  role: string;
+  personality: string;
+  expertise: string[];
+  workingStyle: string;
+  communicationStyle: string;
+  goals: string[];
+  constraints: string[];
+  defaultPrompt?: string;
+}
+
+export interface AgentWorkflow {
+  id: string;
+  name: string;
+  description: string;
+  steps: WorkflowStep[];
+  createdAt: Date;
+  status: 'active' | 'paused' | 'completed';
+}
+
+export interface WorkflowStep {
+  id: string;
+  agentId: string;
+  action: string;
+  input: Record<string, unknown>;
+  dependsOn: string[];
+  onSuccess?: string;
+  onFailure?: string;
 }
 
 export interface Task {

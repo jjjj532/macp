@@ -11,6 +11,7 @@ import { APIServer } from './api/server';
 import { Capability, Task } from './core/types';
 import { EventEmitter } from 'events';
 import { OpenClawIntegration } from './integrations/OpenClaw';
+import { ContentAgent } from './profit/agents/ContentAgent';
 
 class MACP {
   private agentRegistry: AgentRegistry;
@@ -18,12 +19,17 @@ class MACP {
   private taskOrchestrator: TaskOrchestrator;
   private messageBus: MessageBus;
   private knowledgeBase: KnowledgeBase;
+  private contentAgent = new ContentAgent();
   private workflowEngine: WorkflowEngine;
   private metrics: MetricsCollector;
   private logs: LogAggregator;
   private alerts: AlertManager;
   private apiServer: APIServer;
   private openClaw: OpenClawIntegration | null = null;
+
+  getOpenClaw(): OpenClawIntegration | null {
+    return this.openClaw;
+  }
 
   constructor() {
     this.logs = new LogAggregator();
@@ -51,7 +57,8 @@ class MACP {
       this.metrics,
       this.logs,
       this.alerts,
-      3000
+      3000,
+      null
     );
 
     this.setupEventHandlers();
@@ -72,6 +79,9 @@ class MACP {
       baseUrl: openClawUrl,
       apiKey: apiKey || undefined,
     });
+
+    (this.apiServer as any).openClaw = this.openClaw;
+    (this.apiServer as any).registerOpenClawRoutes();
 
     console.log('Checking OpenClaw connection...');
     
@@ -208,7 +218,23 @@ class MACP {
       executor: {
         execute: async (task) => {
           this.logs.info('内容创作任务: ' + task.name);
-          return { output: '内容已生成并通过合规审核' };
+          const input = task.input as any;
+          const prompt = input?.prompt || task.name;
+          const platform = input?.platform || 'xiaohongshu';
+          const keywords = String(prompt).split(/[,，、]/).filter((k: string) => k.trim()).slice(0, 5);
+          
+          try {
+            const result = await this.contentAgent.generateReadyToPost(prompt, keywords, platform as any);
+            return { 
+              output: result.optimized?.content || result.original?.body || '内容生成完成',
+              title: result.original?.title,
+              platform: platform,
+              hashtags: result.optimized?.hashtags
+            };
+          } catch (e) {
+            this.logs.info('内容生成失败: ' + (e as Error).message);
+            return { output: '内容生成失败: ' + (e as Error).message };
+          }
         },
       },
     });

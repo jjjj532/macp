@@ -169,6 +169,54 @@ export class OpenClawIntegration {
     }
   }
 
+  async listSchedules(): Promise<any[]> {
+    try {
+      const response = await this.client.post('/tools/invoke', {
+        tool: 'schedules_list',
+        args: {},
+      });
+      return response.data?.result?.schedules || [];
+    } catch {
+      return [];
+    }
+  }
+
+  async getScheduleReport(scheduleId: string): Promise<any | null> {
+    try {
+      const response = await this.client.post('/tools/invoke', {
+        tool: 'schedule_get',
+        args: { schedule_id: scheduleId },
+      });
+      return response.data?.result || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async runSchedule(scheduleId: string): Promise<any | null> {
+    try {
+      const response = await this.client.post('/tools/invoke', {
+        tool: 'schedule_run',
+        args: { schedule_id: scheduleId },
+      });
+      return response.data?.result || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async getSessionMessages(sessionId: string): Promise<any[]> {
+    try {
+      const response = await this.client.post('/tools/invoke', {
+        tool: 'session_messages',
+        args: { session_id: sessionId },
+      });
+      return response.data?.result?.messages || [];
+    } catch {
+      return [];
+    }
+  }
+
   getBaseUrl(): string {
     return this.baseUrl;
   }

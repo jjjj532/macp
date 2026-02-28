@@ -10,11 +10,13 @@ import { KnowledgeBase } from '../knowledge/base/KnowledgeBase';
 import { WorkflowEngine } from '../workflows/engine/WorkflowEngine';
 import { MetricsCollector, LogAggregator, AlertManager } from '../monitoring/core/Monitoring';
 import { Capability, Task, Workflow } from '../core/types';
+import { OpenClawIntegration } from '../integrations/OpenClaw';
 
 export class APIServer {
   private app = express();
   private server: Server;
   private wss: WebSocketServer;
+  private openClaw: OpenClawIntegration | null = null;
   
   constructor(
     private agentRegistry: AgentRegistry,
@@ -26,8 +28,12 @@ export class APIServer {
     private metrics: MetricsCollector,
     private logs: LogAggregator,
     private alerts: AlertManager,
-    port: number = 3000
+    port: number = 3000,
+    openClaw?: OpenClawIntegration | null
   ) {
+    if (openClaw) {
+      this.openClaw = openClaw;
+    }
     this.server = require('http').createServer(this.app);
     this.wss = new WebSocketServer({ server: this.server });
     
@@ -35,6 +41,7 @@ export class APIServer {
     this.setupRoutes();
     this.setupWebSocket();
     this.setupProfitRoutes();
+    this.setupOpenClawRoutes();
     
     this.server.listen(port, () => {
       console.log(`API Server running on port ${port}`);
@@ -273,5 +280,197 @@ export class APIServer {
     const { ProfitAPI } = require('./profit');
     const profitAPI = new ProfitAPI();
     this.app.use('/api', profitAPI.getRouter());
+  }
+
+  private setupOpenClawRoutes(): void {
+    this.registerOpenClawRoutes();
+  }
+
+  registerOpenClawRoutes(): void {
+    if (!this.openClaw) return;
+    
+    this.app.get('/api/openclaw/schedules', async (req, res) => {
+      try {
+        const schedules = await this.openClaw!.listSchedules();
+        res.json(schedules);
+      } catch (e) {
+        res.status(500).json({ error: (e as Error).message });
+      }
+    });
+
+    this.app.get('/api/openclaw/schedules/:id', async (req, res) => {
+      try {
+        const schedule = await this.openClaw!.getScheduleReport(req.params.id);
+        res.json(schedule);
+      } catch (e) {
+        res.status(500).json({ error: (e as Error).message });
+      }
+    });
+
+    this.app.post('/api/openclaw/schedules/:id/run', async (req, res) => {
+      try {
+        const result = await this.openClaw!.runSchedule(req.params.id);
+        res.json(result);
+      } catch (e) {
+        res.status(500).json({ error: (e as Error).message });
+      }
+    });
+
+    this.app.get('/api/openclaw/sessions', async (req, res) => {
+      try {
+        const sessions = await this.openClaw!.listSessions();
+        res.json(sessions);
+      } catch (e) {
+        res.status(500).json({ error: (e as Error).message });
+      }
+    });
+
+    this.app.get('/api/openclaw/sessions/:id/messages', async (req, res) => {
+      try {
+        const messages = await this.openClaw!.getSessionMessages(req.params.id);
+        res.json(messages);
+      } catch (e) {
+        res.status(500).json({ error: (e as Error).message });
+      }
+    });
+
+    this.app.get('/api/openclaw/ledger', async (req, res) => {
+      try {
+        const fs = require('fs');
+        const ledgerPath = '/root/.openclaw/workspace/data/ledger/ledger.json';
+        if (fs.existsSync(ledgerPath)) {
+          const data = JSON.parse(fs.readFileSync(ledgerPath, 'utf8'));
+          res.json(data);
+        } else {
+          res.json({ error: 'Ledger file not found' });
+        }
+      } catch (e) {
+        res.status(500).json({ error: (e as Error).message });
+      }
+    });
+
+    this.app.get('/api/openclaw/trades', async (req, res) => {
+      try {
+        const fs = require('fs');
+        const tradesPath = '/root/.openclaw/workspace/data/ledger/trades.json';
+        if (fs.existsSync(tradesPath)) {
+          const data = JSON.parse(fs.readFileSync(tradesPath, 'utf8'));
+          res.json(data);
+        } else {
+          res.json({ error: 'Trades file not found' });
+        }
+      } catch (e) {
+        res.status(500).json({ error: (e as Error).message });
+      }
+    });
+
+    this.app.get('/api/openclaw/reports', async (req, res) => {
+      try {
+        const fs = require('fs');
+        const reportsPath = '/root/.openclaw/workspace/data/ledger/reports/';
+        if (fs.existsSync(reportsPath)) {
+          const files = fs.readdirSync(reportsPath).filter((f: string) => f.endsWith('.txt'));
+          const reports = files.map((f: string) => ({
+            filename: f,
+            date: f.replace('_report.txt', ''),
+            content: fs.readFileSync(reportsPath + f, 'utf8')
+          })).sort((a: any, b: any) => b.date.localeCompare(a.date));
+          res.json(reports);
+        } else {
+          res.json([]);
+        }
+      } catch (e) {
+        res.status(500).json({ error: (e as Error).message });
+      }
+    });
+
+    this.app.get('/api/agents/:id/soul', (req, res) => {
+      const agent = this.agentRegistry.get(req.params.id);
+      if (!agent) return res.status(404).json({ error: 'Agent not found' });
+      res.json(agent.soul || null);
+    });
+
+    this.app.put('/api/agents/:id/soul', (req, res) => {
+      const { role, personality, expertise, workingStyle, communicationStyle, goals, constraints, defaultPrompt } = req.body;
+      const agent = this.agentRegistry.get(req.params.id);
+      if (!agent) return res.status(404).json({ error: 'Agent not found' });
+      
+      const soul = { role, personality, expertise, workingStyle, communicationStyle, goals, constraints, defaultPrompt };
+      this.agentRegistry.update(req.params.id, { soul } as any);
+      res.json(soul);
+    });
+
+    this.app.get('/api/agent-workflows', (req, res) => {
+      const workflowsPath = '/root/.openclaw/workspace/data/workflows/';
+      try {
+        const fs = require('fs');
+        if (fs.existsSync(workflowsPath)) {
+          const files = fs.readdirSync(workflowsPath).filter((f: string) => f.endsWith('.json'));
+          const workflows = files.map((f: string) => {
+            const content = fs.readFileSync(workflowsPath + f, 'utf8');
+            return JSON.parse(content);
+          });
+          res.json(workflows);
+        } else {
+          res.json([]);
+        }
+      } catch (e) {
+        res.json([]);
+      }
+    });
+
+    this.app.post('/api/agent-workflows', (req, res) => {
+      const { name, description, steps } = req.body;
+      const fs = require('fs');
+      const workflowsPath = '/root/.openclaw/workspace/data/workflows/';
+      
+      if (!fs.existsSync(workflowsPath)) {
+        fs.mkdirSync(workflowsPath, { recursive: true });
+      }
+      
+      const workflow = {
+        id: 'wf-' + Date.now(),
+        name,
+        description,
+        steps: steps || [],
+        createdAt: new Date().toISOString(),
+        status: 'active'
+      };
+      
+      fs.writeFileSync(workflowsPath + workflow.id + '.json', JSON.stringify(workflow, null, 2));
+      res.json(workflow);
+    });
+
+    this.app.post('/api/agent-workflows/:id/execute', async (req, res) => {
+      const fs = require('fs');
+      const workflowsPath = '/root/.openclaw/workspace/data/workflows/';
+      
+      try {
+        const content = fs.readFileSync(workflowsPath + req.params.id + '.json', 'utf8');
+        const workflow = JSON.parse(content);
+        
+        const results = [];
+        for (const step of workflow.steps) {
+          const agent = this.agentRegistry.get(step.agentId);
+          if (!agent) {
+            results.push({ step: step.id, status: 'failed', error: 'Agent not found' });
+            continue;
+          }
+          
+          const task = await this.taskOrchestrator.createTask({
+            name: step.action,
+            description: `Workflow step: ${step.action}`,
+            requiredCapabilities: [step.action],
+            input: step.input || {}
+          });
+          
+          results.push({ step: step.id, taskId: task.id, status: 'submitted' });
+        }
+        
+        res.json({ workflowId: workflow.id, results });
+      } catch (e) {
+        res.status(500).json({ error: (e as Error).message });
+      }
+    });
   }
 }
