@@ -476,12 +476,13 @@ export class APIServer {
   }
 
   private setupAStockRoutes() {
+    const CRAWLER_SERVICE = 'http://localhost:18890';
     const FINANCE_SERVICE = 'http://localhost:18889';
     const axios = require('axios');
     
     this.app.get('/api/astock/index', async (req, res) => {
       try {
-        const response = await axios.get(`${FINANCE_SERVICE}/index`, { timeout: 15000 });
+        const response = await axios.get(`${CRAWLER_SERVICE}/index`, { timeout: 15000 });
         const data = response.data as any[];
         if (data && data[0] && (data[0] as any).error) {
           throw new Error('Service error');
@@ -494,7 +495,7 @@ export class APIServer {
 
     this.app.get('/api/astock/realtime/:symbol', async (req, res) => {
       try {
-        const response = await axios.get(`${FINANCE_SERVICE}/stock/${req.params.symbol}`, { timeout: 15000 });
+        const response = await axios.get(`${CRAWLER_SERVICE}/stock/${req.params.symbol}`, { timeout: 15000 });
         const data = response.data as any;
         if (data && data.error) {
           res.status(404).json(data);
