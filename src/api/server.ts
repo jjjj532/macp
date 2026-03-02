@@ -476,12 +476,12 @@ export class APIServer {
   }
 
   private setupAStockRoutes() {
-    const ASTOCK_SERVICE = 'http://localhost:18888';
+    const FINANCE_SERVICE = 'http://localhost:18889';
     const axios = require('axios');
     
     this.app.get('/api/astock/index', async (req, res) => {
       try {
-        const response = await axios.get(`${ASTOCK_SERVICE}/stock/index/realtime`, { timeout: 15000 });
+        const response = await axios.get(`${FINANCE_SERVICE}/index`, { timeout: 15000 });
         const data = response.data as any[];
         if (data && data[0] && (data[0] as any).error) {
           throw new Error('Service error');
@@ -494,7 +494,7 @@ export class APIServer {
 
     this.app.get('/api/astock/realtime/:symbol', async (req, res) => {
       try {
-        const response = await axios.get(`${ASTOCK_SERVICE}/stock/realtime/${req.params.symbol}`, { timeout: 15000 });
+        const response = await axios.get(`${FINANCE_SERVICE}/stock/${req.params.symbol}`, { timeout: 15000 });
         const data = response.data as any;
         if (data && data.error) {
           res.status(404).json(data);
@@ -508,7 +508,7 @@ export class APIServer {
 
     this.app.get('/api/astock/concept', async (req, res) => {
       try {
-        const response = await axios.get(`${ASTOCK_SERVICE}/stock/concept`, { timeout: 15000 });
+        const response = await axios.get(`${FINANCE_SERVICE}/concept`, { timeout: 15000 });
         const data = response.data as any[];
         if (data && data[0] && (data[0] as any).error) {
           throw new Error('Service error');
@@ -521,7 +521,7 @@ export class APIServer {
 
     this.app.get('/api/astock/industry', async (req, res) => {
       try {
-        const response = await axios.get(`${ASTOCK_SERVICE}/stock/industry`, { timeout: 15000 });
+        const response = await axios.get(`${FINANCE_SERVICE}/industry`, { timeout: 15000 });
         const data = response.data as any[];
         if (data && data[0] && (data[0] as any).error) {
           throw new Error('Service error');
