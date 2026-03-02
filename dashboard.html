@@ -22,6 +22,7 @@
     .logo-text { font-size: 18px; font-weight: 600; }
     
     .nav-item { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 8px; color: var(--text2); cursor: pointer; margin-bottom: 4px; transition: 0.2s; }
+    .nav-item a { color: inherit; text-decoration: none; display: flex; align-items: center; gap: 10px; width: 100%; }
     .nav-item:hover { background: var(--bg3); color: var(--text); }
     .nav-item.active { background: rgba(59,130,246,0.15); color: var(--accent); }
     
@@ -148,8 +149,9 @@
         <div class="nav-item" id="nav-profit" onclick="showTab('profit')">💰 盈利</div>
         <div class="nav-item" id="nav-openclaw-chat" onclick="showTab('openclaw-chat')">💬 OpenClaw Chat</div>
         <div class="nav-item" id="nav-openclaw-agent" onclick="showTab('openclaw-agent')">🤖 OpenClaw Agent</div>
+        <div class="nav-item" id="nav-developer" onclick="showTab('developer')">💻 开发</div>
         <div class="nav-item" id="nav-logs" onclick="showTab('logs')">📝 日志</div>
-        <div class="nav-item" onclick="window.open('http://localhost:18789','_blank')">✨ OpenClaw</div>
+        <div class="nav-item" id="nav-openclaw-ext" data-url="http://localhost:18789">✨ OpenClaw</div>
       </div>
     </aside>
     
@@ -200,7 +202,10 @@
   </div>
 
   <script>
-    const API = window.location.hostname ? `http://${window.location.hostname}:3000/api` : 'http://localhost:3000/api';
+    const hostname = window.location.hostname;
+    const API = (hostname === 'localhost' || hostname === '127.0.0.1') 
+      ? 'http://43.140.246.228:3000/api' 
+      : `http://${hostname}:3000/api`;
     let agents = [], tasks = [], logs = [];
     let currentTab = 'dashboard';
     let profitData = {daily: {revenue: 0, costs: 0, profit: 0}, total: 0, breakdown: {}};
@@ -491,6 +496,8 @@
             '<div id="workflowList" class="tasks">' +
               '<div class="empty">暂无工作流</div>' +
             '</div></div>';
+      } else if (currentTab === 'developer') {
+        renderDeveloperTab(c);
       }
     }
     
@@ -499,7 +506,7 @@
       document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
       const nav = document.getElementById('nav-' + tab);
       if (nav) nav.classList.add('active');
-      const titles = {dashboard: '控制台', agents: '智能体', tasks: '任务', profit: '盈利', 'openclaw-chat': 'OpenClaw Chat', 'openclaw-agent': 'OpenClaw Agent', logs: '日志'};
+      const titles = {dashboard: '控制台', agents: '智能体', tasks: '任务', profit: '盈利', 'openclaw-chat': 'OpenClaw Chat', 'openclaw-agent': 'OpenClaw Agent', developer: '开发中心', logs: '日志'};
       document.getElementById('pageTitle').innerText = titles[tab];
       render();
     }
@@ -1282,6 +1289,225 @@
         el.innerHTML = '<div style="color:var(--error)">执行失败: ' + e.message + '</div>';
       }
     }
+
+    let developerRepos = [];
+    let developerAgents = [];
+    let githubToken = localStorage.getItem('github_token') || '';
+    
+    async function renderDeveloperTab(c) {
+      c.innerHTML = '<div class="section"><div class="section-header"><h2 class="section-title">🔧 开发中心</h2></div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">' +
+          '<div style="background:var(--bg3);padding:16px;border-radius:8px">' +
+            '<h3 style="margin:0 0 12px">📦 GitHub 仓库</h3>' +
+            '<input type="password" id="githubToken" placeholder="GitHub Token (可选)" value="' + githubToken + '" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text);margin-bottom:8px">' +
+            '<button class="btn btn-primary" onclick="loadGitHubRepos()" style="margin-right:8px">加载仓库</button>' +
+            '<button class="btn btn-secondary" onclick="saveGitHubToken()">保存Token</button>' +
+            '<div id="repoList" style="margin-top:12px;max-height:200px;overflow:auto"></div>' +
+          '</div>' +
+          '<div style="background:var(--bg3);padding:16px;border-radius:8px">' +
+            '<h3 style="margin:0 0 12px">🤖 OpenClaw 智能体</h3>' +
+            '<button class="btn btn-primary" onclick="loadOpenClawAgents()">刷新智能体列表</button>' +
+            '<div id="ocAgentList" style="margin-top:12px;max-height:200px;overflow:auto"></div>' +
+          '</div>' +
+        '</div></div>' +
+        '<div class="section">' +
+          '<div class="section-header"><h3 class="section-title">🚀 部署智能体</h3></div>' +
+          '<div style="background:var(--bg3);padding:16px;border-radius:8px">' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">' +
+              '<div><label style="display:block;margin-bottom:4px;font-size:12px;color:var(--muted)">智能体名称</label><input type="text" id="deployAgentName" placeholder="my-agent" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text)"></div>' +
+              '<div><label style="display:block;margin-bottom:4px;font-size:12px;color:var(--muted)">GitHub仓库路径</label><input type="text" id="deployRepoPath" placeholder="/root/.openclaw/workspace/github/xxx" style="width:100%;padding:8px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text)"></div>' +
+            '</div>' +
+            '<button class="btn btn-primary" onclick="deployToOpenClaw()">部署到 OpenClaw</button>' +
+            '<div id="deployResult" style="margin-top:12px;font-size:12px"></div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="section">' +
+          '<div class="section-header"><h3 class="section-title">📝 编辑智能体</h3></div>' +
+          '<div style="background:var(--bg3);padding:16px;border-radius:8px">' +
+            '<select id="editAgentSelect" onchange="loadAgentForEdit()" style="padding:8px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text);margin-bottom:12px;width:200px">' +
+              '<option value="">-- 选择智能体 --</option>' +
+            '</select>' +
+            '<div id="agentEditor" style="display:none">' +
+              '<div style="margin-bottom:12px"><label style="display:block;margin-bottom:4px;font-size:12px;color:var(--muted)">SOUL.md</label><textarea id="soulEditor" style="width:100%;height:150px;padding:8px;background:var(--bg2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:monospace"></textarea></div>' +
+              '<button class="btn btn-primary" onclick="saveAgentSOUL()">保存 SOUL.md</button>' +
+              '<button class="btn btn-secondary" onclick="restartOpenClaw()" style="margin-left:8px">重启 OpenClaw</button>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      
+      loadOpenClawAgents();
+    }
+
+    async function loadGitHubRepos() {
+      const token = document.getElementById('githubToken').value;
+      const repoList = document.getElementById('repoList');
+      repoList.innerHTML = '<div style="color:var(--muted)">加载中...</div>';
+      
+      try {
+        const url = token ? API + '/developer/github/repos?token=' + encodeURIComponent(token) : API + '/developer/github/repos';
+        const repos = await fetch(url).then(r => r.json());
+        developerRepos = repos;
+        repoList.innerHTML = repos.map(r => 
+          '<div style="padding:8px;border-bottom:1px solid var(--border);cursor:pointer" onclick="cloneRepo(\'' + r.clone_url + '\')">' +
+            '<div style="font-weight:500">' + r.name + '</div>' +
+            '<div style="font-size:12px;color:var(--muted)">' + (r.description || '无描述') + '</div>' +
+          '</div>'
+        ).join('') || '<div style="color:var(--muted)">未找到仓库</div>';
+      } catch (e) {
+        repoList.innerHTML = '<div style="color:var(--error)">加载失败: ' + e.message + '</div>';
+      }
+    }
+
+    function saveGitHubToken() {
+      const token = document.getElementById('githubToken').value;
+      localStorage.setItem('github_token', token);
+      alert('Token已保存');
+    }
+
+    async function cloneRepo(repoUrl) {
+      if (!confirm('确定要克隆这个仓库到OpenClaw工作区吗？')) return;
+      
+      const result = document.getElementById('deployResult');
+      result.innerHTML = '<div style="color:var(--accent)">克隆中...</div>';
+      
+      try {
+        const res = await fetch(API + '/developer/github/clone', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ repoUrl, token: document.getElementById('githubToken').value })
+        });
+        const data = await res.json();
+        if (data.success) {
+          result.innerHTML = '<div style="color:green">克隆成功: ' + data.path + '</div>';
+          document.getElementById('deployRepoPath').value = data.path;
+        } else {
+          result.innerHTML = '<div style="color:var(--error)">克隆失败: ' + data.error + '</div>';
+        }
+      } catch (e) {
+        result.innerHTML = '<div style="color:var(--error)">克隆失败: ' + e.message + '</div>';
+      }
+    }
+
+    async function loadOpenClawAgents() {
+      const ocAgentList = document.getElementById('ocAgentList');
+      if (!ocAgentList) return;
+      
+      ocAgentList.innerHTML = '<div style="color:var(--muted)">加载中...</div>';
+      
+      try {
+        const agents = await fetch(API + '/developer/openclaw/agents').then(r => r.json());
+        developerAgents = agents;
+        ocAgentList.innerHTML = agents.map(a => 
+          '<div style="padding:8px;border-bottom:1px solid var(--border);cursor:pointer" onclick="selectDeveloperAgent(\'' + a.name + '\')">' +
+            '<div style="font-weight:500">' + a.name + '</div>' +
+            '<div style="font-size:12px;color:var(--muted)">SOUL: ' + (a.hasSOUL ? '✓' : '✗') + '</div>' +
+          '</div>'
+        ).join('') || '<div style="color:var(--muted)">暂无智能体</div>';
+        
+        const select = document.getElementById('editAgentSelect');
+        if (select) {
+          select.innerHTML = '<option value="">-- 选择智能体 --</option>' + 
+            agents.map(a => '<option value="' + a.name + '">' + a.name + '</option>').join('');
+        }
+      } catch (e) {
+        ocAgentList.innerHTML = '<div style="color:var(--error)">加载失败: ' + e.message + '</div>';
+      }
+    }
+
+    async function deployToOpenClaw() {
+      const agentName = document.getElementById('deployAgentName').value;
+      const sourcePath = document.getElementById('deployRepoPath').value;
+      const result = document.getElementById('deployResult');
+      
+      if (!agentName) {
+        result.innerHTML = '<div style="color:var(--error)">请输入智能体名称</div>';
+        return;
+      }
+      
+      result.innerHTML = '<div style="color:var(--accent)">部署中...</div>';
+      
+      try {
+        const res = await fetch(API + '/developer/openclaw/deploy', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ agentName, sourcePath })
+        });
+        const data = await res.json();
+        if (data.success) {
+          result.innerHTML = '<div style="color:green">部署成功: ' + data.message + '</div>';
+          loadOpenClawAgents();
+        } else {
+          result.innerHTML = '<div style="color:var(--error)">部署失败: ' + data.error + '</div>';
+        }
+      } catch (e) {
+        result.innerHTML = '<div style="color:var(--error)">部署失败: ' + e.message + '</div>';
+      }
+    }
+
+    async function loadAgentForEdit() {
+      const agentName = document.getElementById('editAgentSelect').value;
+      const editor = document.getElementById('agentEditor');
+      
+      if (!agentName) {
+        editor.style.display = 'none';
+        return;
+      }
+      
+      try {
+        const agent = await fetch(API + '/developer/openclaw/agent/' + agentName).then(r => r.json());
+        document.getElementById('soulEditor').value = agent.soul || '';
+        editor.style.display = 'block';
+      } catch (e) {
+        alert('加载失败: ' + e.message);
+      }
+    }
+
+    async function saveAgentSOUL() {
+      const agentName = document.getElementById('editAgentSelect').value;
+      const soul = document.getElementById('soulEditor').value;
+      
+      if (!agentName) {
+        alert('请选择智能体');
+        return;
+      }
+      
+      try {
+        const res = await fetch(API + '/developer/openclaw/agent/' + agentName, {
+          method: 'PUT',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({ soul })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('保存成功');
+        } else {
+          alert('保存失败: ' + data.error);
+        }
+      } catch (e) {
+        alert('保存失败: ' + e.message);
+      }
+    }
+
+    async function restartOpenClaw() {
+      if (!confirm('确定要重启OpenClaw服务吗？')) return;
+      
+      try {
+        const res = await fetch(API + '/developer/openclaw/restart', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          alert('OpenClaw正在重启，请稍候刷新页面');
+        } else {
+          alert('重启失败: ' + data.error);
+        }
+      } catch (e) {
+        alert('重启失败: ' + e.message);
+      }
+    }
+
+    document.getElementById('nav-openclaw-ext')?.addEventListener('click', function() {
+      var url = this.getAttribute('data-url');
+      if (url) window.open(url, '_blank');
+    });
 
     fetchData();
     setInterval(fetchData, 5000);
